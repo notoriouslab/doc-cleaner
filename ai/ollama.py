@@ -6,6 +6,7 @@ Requires Ollama to be running locally (default: http://localhost:11434).
 """
 import logging
 from typing import Optional
+from urllib.parse import urlparse
 
 from .base import AIBackend
 
@@ -21,6 +22,14 @@ class OllamaBackend(AIBackend):
     def __init__(self, model: str = "qwen3.5:9b", host: str = "http://localhost:11434",
                  vision_models: Optional[list] = None):
         self._model = model
+
+        # P2 security: only allow localhost to prevent SSRF via malicious config
+        parsed = urlparse(host)
+        if parsed.hostname not in ("localhost", "127.0.0.1", "::1"):
+            raise ValueError(
+                f"Ollama host must be localhost, got {parsed.hostname!r}. "
+                f"Remote Ollama endpoints are blocked to prevent accidental data leakage."
+            )
         self._host = host.rstrip("/")
         self._vision_models = tuple(vision_models) if vision_models else self.DEFAULT_VISION_MODELS
 

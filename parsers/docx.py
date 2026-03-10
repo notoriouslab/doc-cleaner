@@ -61,19 +61,18 @@ def parse(filepath):
             import subprocess
             import tempfile
 
-            with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tf:
-                temp_txt = tf.name
-            subprocess.run(
-                ["textutil", "-convert", "txt", filepath, "-output", temp_txt],
-                check=True,
-                capture_output=True,
-            )
-            if os.path.exists(temp_txt):
-                with open(temp_txt, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read()
-                os.remove(temp_txt)
-                if content.strip():
-                    return content
+            with tempfile.TemporaryDirectory() as tmpdir:
+                temp_txt = os.path.join(tmpdir, "out.txt")
+                subprocess.run(
+                    ["textutil", "-convert", "txt", filepath, "-output", temp_txt],
+                    check=True,
+                    capture_output=True,
+                )
+                if os.path.exists(temp_txt):
+                    with open(temp_txt, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read()
+                    if content.strip():
+                        return content
         except Exception as e:
             logger.warning(f"textutil failed: {e}")
 

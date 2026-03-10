@@ -35,7 +35,7 @@ def render_ai_output(data, filename, source_path=None, frontmatter=True):
         now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
         pub_date = now.strftime("%Y-%m-%d %H:%M+08:00")
 
-        tags_yaml = "\n".join(f'  - "{t}"' for t in tags) if tags else ""
+        tags_yaml = "\n".join(f'  - "{t.replace(chr(34), chr(92)+chr(34))}"' for t in tags) if tags else ""
         tags_block = f"tags:\n{tags_yaml}" if tags_yaml else "tags: []"
 
         fm = (

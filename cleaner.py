@@ -15,7 +15,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 logger = logging.getLogger("doc-cleaner")
 
@@ -329,10 +329,15 @@ def collect_files(input_path):
             return []
 
     if os.path.isdir(input_path):
+        real_root = os.path.realpath(input_path)
         files = []
         skipped_dirs = []
         for f in sorted(os.listdir(input_path)):
-            fp = os.path.join(input_path, f)
+            fp = os.path.realpath(os.path.join(input_path, f))
+            # P4 security: reject symlinks escaping the input directory
+            if not fp.startswith(real_root + os.sep) and fp != real_root:
+                logger.warning(f"Skipping symlink escape: {f}")
+                continue
             if os.path.isdir(fp):
                 skipped_dirs.append(f)
             elif os.path.isfile(fp) and os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS:
@@ -404,6 +409,9 @@ def main():
 
     # PDF password priority: CLI > .env > config.json
     if args.password:
+        if len(args.password) > 1024:
+            logger.error("--password too long (max 1024 chars)")
+            sys.exit(EXIT_NO_INPUT)
         config.setdefault("pdf", {})["password"] = args.password
 
     # AI mode priority: CLI --ai > config.json > default "gemini"
