@@ -27,7 +27,18 @@ def parse(filepath, max_chars_per_sheet=8000):
         import pandas as pd
 
         if ext == ".csv":
-            sheets = {"CSV": pd.read_csv(filepath)}
+            # Try multiple encodings for CJK CSV files (e.g. Big5 bank statements)
+            _csv_encodings = ["utf-8", "big5", "cp950", "utf-16"]
+            df = None
+            for enc in _csv_encodings:
+                try:
+                    df = pd.read_csv(filepath, encoding=enc)
+                    break
+                except (UnicodeDecodeError, LookupError):
+                    continue
+            if df is None:
+                df = pd.read_csv(filepath, encoding="utf-8", encoding_errors="replace")
+            sheets = {"CSV": df}
         else:
             sheets = pd.read_excel(filepath, sheet_name=None)
 

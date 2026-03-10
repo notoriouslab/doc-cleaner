@@ -11,6 +11,32 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _escape_yaml_str(value):
+    """Escape a string for safe embedding in double-quoted YAML values."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _render_frontmatter(title, description, tags=None, source_path=None):
+    """Render YAML frontmatter block shared by AI and raw modes."""
+    now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
+    pub_date = now.strftime("%Y-%m-%d %H:%M+08:00")
+
+    tags = tags or []
+    tags_yaml = "\n".join(f'  - "{_escape_yaml_str(t)}"' for t in tags) if tags else ""
+    tags_block = f"tags:\n{tags_yaml}" if tags_yaml else "tags: []"
+
+    return (
+        f"---\n"
+        f'title: "{_escape_yaml_str(title)}"\n'
+        f'description: "{_escape_yaml_str(description)}"\n'
+        f'pubDate: "{pub_date}"\n'
+        f"draft: true\n"
+        f"{tags_block}\n"
+        f'source_path: "{_escape_yaml_str(source_path or "")}"\n'
+        f"---\n"
+    )
+
+
 def render_ai_output(data, filename, source_path=None, frontmatter=True):
     """
     Render AI-structured data into Markdown with optional YAML frontmatter.
@@ -32,23 +58,7 @@ def render_ai_output(data, filename, source_path=None, frontmatter=True):
     parts = []
 
     if frontmatter:
-        now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
-        pub_date = now.strftime("%Y-%m-%d %H:%M+08:00")
-
-        tags_yaml = "\n".join(f'  - "{t.replace(chr(34), chr(92)+chr(34))}"' for t in tags) if tags else ""
-        tags_block = f"tags:\n{tags_yaml}" if tags_yaml else "tags: []"
-
-        fm = (
-            f"---\n"
-            f'title: "{title}"\n'
-            f'description: "{summary}"\n'
-            f'pubDate: "{pub_date}"\n'
-            f"draft: true\n"
-            f"{tags_block}\n"
-            f'source_path: "{source_path or ""}"\n'
-            f"---\n"
-        )
-        parts.append(fm)
+        parts.append(_render_frontmatter(title, summary, tags, source_path))
 
     parts.append(f"# {title}\n")
 
@@ -71,20 +81,7 @@ def render_raw_output(text, filename, source_path=None, frontmatter=True):
     parts = []
 
     if frontmatter:
-        now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
-        pub_date = now.strftime("%Y-%m-%d %H:%M+08:00")
-
-        fm = (
-            f"---\n"
-            f'title: "{filename}"\n'
-            f'description: "Raw extraction"\n'
-            f'pubDate: "{pub_date}"\n'
-            f"draft: true\n"
-            f"tags: []\n"
-            f'source_path: "{source_path or ""}"\n'
-            f"---\n"
-        )
-        parts.append(fm)
+        parts.append(_render_frontmatter(filename, "Raw extraction", source_path=source_path))
 
     parts.append(f"# {filename}\n")
     parts.append(text)

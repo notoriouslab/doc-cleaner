@@ -41,12 +41,11 @@ def classify(filepath):
         return PdfType.SCANNED, "", {"page_count": 1}
 
     try:
-        doc = fitz.open(filepath)
-        pages = max(doc.page_count, 1)
-        parts = []
-        for page in doc:
-            parts.append(page.get_text())
-        doc.close()
+        with fitz.open(filepath) as doc:
+            pages = max(doc.page_count, 1)
+            parts = []
+            for page in doc:
+                parts.append(page.get_text())
         text = "".join(parts)
     except Exception as e:
         logger.error(f"PDF classification failed: {e}")

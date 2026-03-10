@@ -126,13 +126,12 @@ def extract_text(filepath, max_chars=150_000):
         logger.warning("PyMuPDF (fitz) not installed — cannot extract PDF text")
         return ""
     try:
-        doc = fitz.open(filepath)
-        parts = []
-        for page in doc:
-            parts.append(page.get_text())
-            if sum(len(p) for p in parts) > max_chars:
-                break
-        doc.close()
+        with fitz.open(filepath) as doc:
+            parts = []
+            for page in doc:
+                parts.append(page.get_text())
+                if sum(len(p) for p in parts) > max_chars:
+                    break
         return "".join(parts)[:max_chars]
     except Exception as e:
         logger.error(f"PDF text extraction failed: {e}")
@@ -144,9 +143,8 @@ def get_page_count(filepath):
     if not fitz:
         return 1
     try:
-        doc = fitz.open(filepath)
-        n = doc.page_count
-        doc.close()
+        with fitz.open(filepath) as doc:
+            n = doc.page_count
         return n
     except Exception:
         return 1

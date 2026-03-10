@@ -62,14 +62,28 @@ def clean_json_response(raw_text):
 
     # Auto-fix unterminated structures (balance brackets before closing)
     if not (s.endswith("}") or s.endswith("]")):
-        # Close any unterminated string
-        if '"' in s.split("{")[-1]:
+        # Close any unterminated string — count quotes (ignoring escaped ones)
+        unescaped_quotes = len(re.findall(r'(?<!\\)"', s))
+        if unescaped_quotes % 2 != 0:
             s += '"'
-        # Balance unclosed brackets: close inner structures first
-        open_braces = s.count("{") - s.count("}")
-        open_brackets = s.count("[") - s.count("]")
-        s += "}" * max(open_braces, 0)
-        s += "]" * max(open_brackets, 0)
+        # Balance unclosed brackets in correct nesting order using a stack
+        stack = []
+        in_string = False
+        prev_char = ""
+        for ch in s:
+            if ch == '"' and prev_char != "\\":
+                in_string = not in_string
+            elif not in_string:
+                if ch in ("{", "["):
+                    stack.append(ch)
+                elif ch == "}" and stack and stack[-1] == "{":
+                    stack.pop()
+                elif ch == "]" and stack and stack[-1] == "[":
+                    stack.pop()
+            prev_char = ch
+        # Close in reverse order (innermost first)
+        for opener in reversed(stack):
+            s += "}" if opener == "{" else "]"
 
     try:
         return json.loads(s)

@@ -303,9 +303,17 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False
         try:
             os.makedirs(output_dir, exist_ok=True)
             fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(content)
-            os.replace(tmp_path, output_path)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                os.replace(tmp_path, output_path)
+            except BaseException:
+                # Clean up temp file on any failure (e.g. cross-filesystem rename)
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
         except OSError as e:
             logger.error(f"  Write failed for {output_path}: {e}")
             return "write_error", None

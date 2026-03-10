@@ -94,6 +94,9 @@ class OllamaBackend(AIBackend):
                 prompt=full_prompt,
                 **kwargs,
             )
+            # Support both dict (old SDK) and object (new SDK) response types
+            if hasattr(response, "response"):
+                return response.response or ""
             return response.get("response", "")
         except Exception as e:
             logger.error(f"Ollama call failed: {e}")
