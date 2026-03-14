@@ -15,6 +15,10 @@
     "dpi": 200,
     "max_pages": 15
   },
+  "pii": {
+    "enabled": false,
+    "patterns": ["national_id", "credit_card", "mobile", "landline", "business_id"]
+  },
   "output": {
     "frontmatter": true
   },

@@ -263,6 +263,17 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False
             logger.warning(f"  No content extracted from {filename}")
             return "no_content", None
 
+        # PII redaction (opt-in via config)
+        pii_config = config.get("pii", {})
+        pii_enabled = pii_config.get("enabled", False)
+        pii_patterns = pii_config.get("patterns", None)  # None = all patterns
+
+        if pii_enabled and text:
+            from classifiers.pii import redact as redact_pii
+            text, pii_count = redact_pii(text, enabled_patterns=pii_patterns)
+            if pii_count:
+                logger.info(f"  PII: {pii_count} item(s) redacted before processing")
+
         frontmatter = config.get("output", {}).get("frontmatter", True)
 
         if ai_backend:
@@ -325,6 +336,13 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False
                 text, filename, source_path=filename,
                 frontmatter=frontmatter,
             )
+
+        # Final PII sweep on rendered output (catches AI-echoed PII)
+        if pii_enabled:
+            from classifiers.pii import redact as redact_pii
+            content, pii_output_count = redact_pii(content, enabled_patterns=pii_patterns)
+            if pii_output_count:
+                logger.info(f"  PII: {pii_output_count} item(s) redacted from output")
 
         # Atomic write via tempfile (safe for parallel invocations)
         try:
