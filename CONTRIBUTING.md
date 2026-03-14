@@ -28,7 +28,7 @@ If you work with a specific document type (medical, legal, academic, etc.):
 
 Please include:
 - Python version (`python --version`)
-- AI backend used (`gemini`, `ollama`, or `none`)
+- AI backend used (`gemini`, `grok`, `ollama`, or `none`)
 - File type that triggered the issue (PDF, DOCX, XLSX, etc.)
 - Anonymised log output: `python cleaner.py --input <file> --verbose 2>&1`
 - What you expected vs. what happened
@@ -52,12 +52,13 @@ pip install PyMuPDF python-docx pandas openpyxl Pillow
 
 # (Optional) AI backend
 pip install google-genai python-dotenv   # Gemini
+# Grok uses xAI's REST API directly; set XAI_API_KEY in .env or your shell
 pip install ollama                        # Ollama
 
 # Config
 cp config.example.json config.json
 cp .env.example .env
-# Edit .env — set GEMINI_API_KEY if using Gemini
+# Edit .env — set GEMINI_API_KEY or XAI_API_KEY if using a cloud backend
 
 # Test: raw extraction (no AI)
 python cleaner.py --input sample.pdf --ai none --verbose

@@ -6,6 +6,12 @@
     "gemini": {
       "model": "gemini-2.5-pro"
     },
+    "grok": {
+      "model": "grok-4",
+      "base_url": "https://api.x.ai/v1",
+      "timeout": 120,
+      "store": false
+    },
     "ollama": {
       "model": "qwen3.5:9b",
       "host": "http://localhost:11434"

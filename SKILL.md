@@ -28,6 +28,11 @@ python3 {baseDir}/cleaner.py --input "{{file_path}}" --ai none
 python3 {baseDir}/cleaner.py --input "{{file_path}}" --ai gemini
 ```
 
+### Convert a single file with Grok structuring
+```bash
+python3 {baseDir}/cleaner.py --input "{{file_path}}" --ai grok
+```
+
 ### Convert all files in a directory
 ```bash
 python3 {baseDir}/cleaner.py --input "{{directory}}" --ai none --output-dir "{{output_dir}}"
@@ -54,7 +59,7 @@ The `--summary` flag prints a JSON summary to stdout after processing:
 |---|---|
 | `--input, -i` | File or directory to process (required, non-recursive) |
 | `--output-dir, -o` | Output directory (default: ./output) |
-| `--ai` | `gemini`, `ollama`, or `none` (default: from config or gemini) |
+| `--ai` | `gemini`, `grok`, `ollama`, or `none` (default: from config or gemini) |
 | `--password` | PDF decryption password |
 | `--config` | Path to config JSON |
 | `--summary` | Print JSON summary to stdout after processing |
@@ -76,7 +81,7 @@ PDF (native, scanned, encrypted), DOCX, XLSX, XLS, CSV, TXT, MD
 ## Notes
 
 - Output defaults to `./output/` relative to current directory
-- For scanned PDFs, AI mode (`gemini` or `ollama`) gives much better results
+- For scanned PDFs, AI mode (`gemini`, `grok`, or `ollama`) gives much better results
 - `--ai none` requires zero API keys and zero network access
 - CJK encoding (Big5, CP950, UTF-16) is auto-detected
 - Tables in DOCX and XLSX are preserved as Markdown pipe tables
