@@ -25,9 +25,33 @@ The primary risks are:
 - **Malicious DOCX/XLSX**: `python-docx` and `openpyxl`/`pandas` parse XML internally. Keep these dependencies updated.
 - **ZIP bombs via pikepdf**: pikepdf operates on PDF streams, not ZIP archives. No decompression bomb risk here (that concern belongs to [gmail-statement-fetcher](https://github.com/notoriouslab/gmail-statement-fetcher)).
 
+### PII redaction
+
+doc-cleaner includes an opt-in PII redaction module (`classifiers/pii.py`) that masks Taiwan-specific personally identifiable information:
+
+| Pattern | Example | Masked |
+|---|---|---|
+| 身分證字號 (National ID) | A123456789 | A12345**** |
+| 信用卡號 (Credit card) | 4321-1234-5678-9012 | 4321-****-****-9012 |
+| 手機 (Mobile) | 0912-345-678 | 0912-***-*** |
+| 市話 (Landline) | 02-1234-5678 | 02-****-**** |
+| 統一編號 (Business ID) | 12345678 | 1234**** |
+
+**Enable in `config.json`:**
+```json
+{ "pii": { "enabled": true } }
+```
+
+Redaction runs **twice**: before the AI call (prevents PII from reaching cloud APIs) and on the final output (catches any PII the AI might echo back).
+
+**Limitations:**
+- Regex-based detection is not perfect — unusual formatting may evade detection.
+- `business_id` (8-digit pattern) may produce false positives on monetary amounts or dates. Disable it via `"patterns"` config if needed.
+- PII is **not** redacted from images sent to vision models — only extracted text is covered.
+
 ### AI backend exposure
 
-- **Gemini mode**: document content is sent to Google's API. Do not use `--ai gemini` for documents you cannot share with a cloud provider.
+- **Gemini mode**: document content is sent to Google's API. Do not use `--ai gemini` for documents you cannot share with a cloud provider. Enable PII redaction (`"pii": {"enabled": true}`) to mask sensitive data before it reaches the API.
 - **Ollama mode**: all processing stays local. Use `--ai ollama` or `--ai none` for sensitive documents.
 
 ### Output files
