@@ -16,6 +16,8 @@ from .base import AIBackend
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_USER_AGENT = "doc-cleaner/0.1"
+
 
 class GroqBackend(AIBackend):
     """Groq backend via the OpenAI-compatible chat completions API."""
@@ -81,7 +83,6 @@ class GroqBackend(AIBackend):
                     "content": user_content,
                 },
             ],
-            "response_format": {"type": "json_object"},
         }
 
         body = json.dumps(payload).encode("utf-8")
@@ -91,6 +92,7 @@ class GroqBackend(AIBackend):
             headers={
                 "Authorization": f"Bearer {self._api_key}",
                 "Content-Type": "application/json",
+                "User-Agent": DEFAULT_USER_AGENT,
             },
             method="POST",
         )
