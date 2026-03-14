@@ -17,7 +17,7 @@ Most document-to-Markdown tools either drop tables, butcher CJK text, or require
 | CJK-first | Big5, CP950, UTF-16 auto-detection — covers all Taiwan bank statements |
 | Table preservation | DOCX + XLSX → Markdown pipe tables |
 | Smart PDF triage | Auto-classifies: native text / layout-broken / scanned |
-| AI structuring | Gemini (cloud), Grok (cloud), or Ollama (local) |
+| AI structuring | Gemini (cloud), Groq (cloud), or Ollama (local) |
 | No-AI mode | `--ai none` — pure extraction, zero API keys, zero cloud |
 | PDF decryption | Optional pikepdf |
 | Ad truncation | Configurable regex patterns to strip bank disclaimers |
@@ -40,7 +40,7 @@ pip install -r requirements.txt
 # 3. (Optional) Install AI backend
 pip install google-genai python-dotenv   # for Gemini
 # or
-# Grok uses xAI's REST API directly; just set XAI_API_KEY
+# Groq uses its OpenAI-compatible API directly; just set GROQ_API_KEY
 # or
 pip install ollama                        # for local Ollama
 
@@ -51,7 +51,7 @@ pip install pdf2image                     # PDF vision mode (requires poppler)
 # 5. Configure
 cp config.example.json config.json
 cp .env.example .env
-# Edit .env — set GEMINI_API_KEY or XAI_API_KEY if using a cloud backend
+# Edit .env — set GEMINI_API_KEY or GROQ_API_KEY if using a cloud backend
 
 # 6. Run
 python cleaner.py --input statement.pdf
@@ -85,7 +85,7 @@ python cleaner.py [options]
   --input, -i       File or directory to process (required, non-recursive)
   --output-dir, -o  Output directory (default: ./output)
   --config          Path to config JSON (default: <script-dir>/config.json)
-  --ai              gemini | grok | ollama | none (default: from config or gemini)
+  --ai              gemini | groq | ollama | none (default: from config or gemini)
   --password        PDF decryption password (overrides .env and config)
   --summary         Print JSON summary to stdout after processing (for scripts and AI agents)
   --dry-run         Preview without writing files
@@ -115,11 +115,10 @@ The main config file is `config.json` (copy from `config.example.json`):
     "gemini": {
       "model": "gemini-2.5-pro"
     },
-    "grok": {
-      "model": "grok-4",
-      "base_url": "https://api.x.ai/v1",
-      "timeout": 120,
-      "store": false
+    "groq": {
+      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "base_url": "https://api.groq.com/openai/v1",
+      "timeout": 120
     },
     "ollama": {
       "model": "qwen3.5:9b",
@@ -149,7 +148,7 @@ The main config file is `config.json` (copy from `config.example.json`):
 ```
 # .env example
 GEMINI_API_KEY=your-key-here
-XAI_API_KEY=your-key-here
+GROQ_API_KEY=your-key-here
 PDF_PASSWORD=your-pdf-password
 ```
 
@@ -241,7 +240,7 @@ python cleaner.py --input ./downloads/ --ai none --output-dir ./output/raw
 # (check logs for "Layout-broken" or "Scanned" classification)
 python cleaner.py --input problem_file.pdf --ai gemini --output-dir ./output/ai
 # or
-python cleaner.py --input problem_file.pdf --ai grok --output-dir ./output/ai
+python cleaner.py --input problem_file.pdf --ai groq --output-dir ./output/ai
 ```
 
 ---

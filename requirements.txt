@@ -9,8 +9,9 @@ Pillow>=9.0.0
 # google-genai>=1.0.0
 # python-dotenv>=1.0.0
 
-# Grok AI backend (optional: no extra SDK required, but python-dotenv helps load .env)
+# Groq AI backend (optional: no extra SDK required, but python-dotenv helps load .env)
 # python-dotenv>=1.0.0
+# certifi>=2024.0.0
 
 # Ollama AI backend (optional: pip install ollama)
 # ollama>=0.4.0

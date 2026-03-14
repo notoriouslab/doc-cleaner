@@ -21,7 +21,7 @@ doc-cleaner 從第一天就為**繁體中文的文件**設計：
 | 中文友好       | Big5 / CP950 / UTF-16 自動偵測，金融業對帳單也能用   |
 | 表格保留       | DOCX + XLSX → Markdown pipe table，不丟格式 |
 | PDF 智慧分流   | 自動辨識：原生文字 / 格式破碎 / 掃描圖片                |
-| AI 結構化     | Gemini 雲端、Grok 雲端 或 Ollama 本地             |
+| AI 結構化     | Gemini 雲端、Groq 雲端 或 Ollama 本地             |
 | 無 AI 模式（選） | `--ai none` 純提取，零 API、零雲端              |
 | PDF 解密（選）  | 選裝 pikepdf                             |
 | 廣告截斷       | 可自訂正則，移除副檔內的固定廣告尾巴                     |
@@ -44,7 +44,7 @@ pip install -r requirements.txt
 # 3.（選裝）AI 後端
 pip install google-genai python-dotenv   # Gemini 雲端
 # 或
-# Grok 雲端不需要額外 SDK；只要設定 XAI_API_KEY
+# Groq 雲端不需要額外 SDK；只要設定 GROQ_API_KEY
 # 或
 pip install ollama                        # Ollama 本地
 
@@ -54,7 +54,7 @@ pip install pdf2image                     # PDF 視覺模式（另需安裝 popp
 
 # 5. 設定
 cp config.example.json config.json        # 編輯 AI 模型、廣告正則等
-cp .env.example .env                      # 填入 GEMINI_API_KEY / XAI_API_KEY（依後端而定）
+cp .env.example .env                      # 填入 GEMINI_API_KEY / GROQ_API_KEY（依後端而定）
 
 # 6. 執行
 python cleaner.py --input 對帳單.pdf
@@ -88,7 +88,7 @@ python cleaner.py [選項]
   --input, -i       要處理的檔案或目錄（必填，不遞迴子目錄）
   --output-dir, -o  輸出目錄（預設：./output）
   --config          設定檔路徑（預設：<程式目錄>/config.json）
-  --ai              gemini | grok | ollama | none（預設：config 裡的 backend 或 gemini）
+  --ai              gemini | groq | ollama | none（預設：config 裡的 backend 或 gemini）
   --password        PDF 解密密碼（優先於 .env 和 config）
   --summary         處理完後輸出 JSON 摘要到 stdout（方便腳本和 AI agent 解析）
   --dry-run         預覽不寫入
@@ -118,11 +118,10 @@ python cleaner.py [選項]
     "gemini": {
       "model": "gemini-2.5-pro"
     },
-    "grok": {
-      "model": "grok-4",
-      "base_url": "https://api.x.ai/v1",
-      "timeout": 120,
-      "store": false
+    "groq": {
+      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "base_url": "https://api.groq.com/openai/v1",
+      "timeout": 120
     },
     "ollama": {
       "model": "qwen3.5:9b",
@@ -152,7 +151,7 @@ python cleaner.py [選項]
 ```
 # .env 範例
 GEMINI_API_KEY=your-key-here
-XAI_API_KEY=your-key-here
+GROQ_API_KEY=your-key-here
 PDF_PASSWORD=your-pdf-password
 ```
 
@@ -243,7 +242,7 @@ python cleaner.py --input ./downloads/ --ai none --output-dir ./output/raw
 # 第二步：檢查 log，只對 "Layout-broken" 或 "Scanned" 的檔案跑 AI
 python cleaner.py --input problem_file.pdf --ai gemini --output-dir ./output/ai
 # 或
-python cleaner.py --input problem_file.pdf --ai grok --output-dir ./output/ai
+python cleaner.py --input problem_file.pdf --ai groq --output-dir ./output/ai
 ```
 
 ---

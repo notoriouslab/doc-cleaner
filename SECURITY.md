@@ -8,7 +8,7 @@ Only the latest release on the `main` branch receives security fixes.
 
 | File | Contains |
 |---|---|
-| `.env` | `GEMINI_API_KEY`, `XAI_API_KEY`, `PDF_PASSWORD` |
+| `.env` | `GEMINI_API_KEY`, `GROQ_API_KEY`, `PDF_PASSWORD` |
 | `config.json` | AI model/host settings, ad patterns — **no secrets** |
 
 Both are excluded by `.gitignore`. API keys and passwords belong in `.env` only.
@@ -52,7 +52,7 @@ Redaction runs **twice**: before the AI call (prevents PII from reaching cloud A
 ### AI backend exposure
 
 - **Gemini mode**: document content is sent to Google's API. Do not use `--ai gemini` for documents you cannot share with a cloud provider. Enable PII redaction (`"pii": {"enabled": true}`) to mask sensitive data before it reaches the API.
-- **Grok mode**: document content is sent to xAI's API. Do not use `--ai grok` for documents you cannot share with a cloud provider. For image inputs, doc-cleaner sends `store=false` to reduce server-side retention. Enable PII redaction (`"pii": {"enabled": true}`) to mask extracted text before it reaches the API, but note that images themselves are not redacted.
+- **Groq mode**: document content is sent to Groq's cloud API. Do not use `--ai groq` for documents you cannot share with a cloud provider. Enable PII redaction (`"pii": {"enabled": true}`) to mask extracted text before it reaches the API, but note that images themselves are not redacted.
 - **Ollama mode**: all processing stays local. Use `--ai ollama` or `--ai none` for sensitive documents.
 
 ### Output files

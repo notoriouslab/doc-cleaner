@@ -6,11 +6,10 @@
     "gemini": {
       "model": "gemini-2.5-pro"
     },
-    "grok": {
-      "model": "grok-4",
-      "base_url": "https://api.x.ai/v1",
-      "timeout": 120,
-      "store": false
+    "groq": {
+      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "base_url": "https://api.groq.com/openai/v1",
+      "timeout": 120
     },
     "ollama": {
       "model": "qwen3.5:9b",
