@@ -27,15 +27,53 @@ class PdfType:
     SCANNED = "scanned"
 
 
-def classify(filepath):
+def _has_pipe_table(text):
+    """Check if text contains at least one Markdown pipe table row."""
+    return bool(re.search(r"\|.+\|.+\|", text))
+
+
+def classify(filepath, odl_text=None):
     """
     Classify a PDF into one of three types: native, layout_broken, or scanned.
+
+    If odl_text is provided (from opendataloader-pdf), use it for classification
+    instead of PyMuPDF extraction. ODL text with pipe tables upgrades LAYOUT_BROKEN
+    to NATIVE since the tables were successfully extracted.
 
     Returns: (pdf_type, text, metadata)
         - pdf_type: PdfType.NATIVE | LAYOUT_BROKEN | SCANNED
         - text: extracted text (may be empty for scanned)
         - metadata: dict with density, garbage_ratio, short_line_ratio, page_count
     """
+    # If ODL provided good text, use it for classification
+    if odl_text and len(odl_text) >= 50:
+        # Get page count via fitz if available, else estimate
+        pages = 1
+        if fitz:
+            try:
+                with fitz.open(filepath) as doc:
+                    pages = max(doc.page_count, 1)
+            except Exception:
+                pass
+
+        density = len(odl_text.strip()) / pages
+        metadata = {
+            "page_count": pages,
+            "char_density": round(density, 1),
+            "garbage_ratio": 0,
+            "short_line_ratio": 0,
+            "source": "odl",
+        }
+
+        fname = os.path.basename(filepath)
+        if _has_pipe_table(odl_text):
+            logger.info(f"[Classifier] Native PDF via ODL (tables detected): {fname}")
+            return PdfType.NATIVE, odl_text, metadata
+
+        logger.info(f"[Classifier] Native PDF via ODL (density={density:.0f}): {fname}")
+        return PdfType.NATIVE, odl_text, metadata
+
+    # ODL not available or produced insufficient text — fall back to PyMuPDF
     if not fitz:
         logger.warning("PyMuPDF (fitz) not installed — defaulting to scanned")
         return PdfType.SCANNED, "", {"page_count": 1}
@@ -65,6 +103,7 @@ def classify(filepath):
         "char_density": round(density, 1),
         "garbage_ratio": round(garbage_ratio, 4),
         "short_line_ratio": round(short_line_ratio, 3),
+        "source": "fitz",
     }
 
     # Decision tree

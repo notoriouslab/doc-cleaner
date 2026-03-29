@@ -21,14 +21,18 @@ DEFAULT_CUTOFF_PATTERNS = [
 _BLANK_LINES_RE = re.compile(r"\n{3,}")
 
 
-def clean_text(text, cutoff_patterns=None, min_keep_ratio=0.3, strip_urls=True):
+def clean_text(text, cutoff_patterns=None, strip_patterns=None,
+               min_keep_ratio=0.3, strip_urls=True):
     """
-    Remove known ad/legal footers and clean up whitespace.
+    Remove known ad/legal footers, inline ad blocks, and clean up whitespace.
 
     Args:
         text: raw extracted text
         cutoff_patterns: list of regex patterns. Everything after the first
                          match is removed. Defaults to Taiwan financial patterns.
+        strip_patterns: list of regex patterns. Each match removes the entire
+                        paragraph (from the match to the next blank line or end).
+                        Use for ads/notices embedded between useful content.
         min_keep_ratio: safety guard — if truncation would remove more than
                         (1 - min_keep_ratio) of the text, skip it and warn.
                         Default 0.3 means at least 30% of content must survive.
@@ -38,6 +42,15 @@ def clean_text(text, cutoff_patterns=None, min_keep_ratio=0.3, strip_urls=True):
     Returns:
         cleaned text
     """
+    # Strip inline ad blocks (before cutoff, so they don't interfere)
+    if strip_patterns:
+        for pat in strip_patterns:
+            try:
+                # Remove from pattern match to end of paragraph (next blank line or EOF)
+                text = re.sub(pat + r"[^\n]*(?:\n(?!\n)[^\n]*)*", "", text)
+            except re.error as e:
+                logger.warning(f"Invalid strip pattern {pat!r}: {e}")
+
     patterns = cutoff_patterns or DEFAULT_CUTOFF_PATTERNS
 
     if patterns:

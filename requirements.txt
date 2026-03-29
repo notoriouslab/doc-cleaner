@@ -19,3 +19,7 @@ Pillow>=9.0.0
 # PDF extras (optional)
 # pikepdf>=8.0.0        # PDF decryption
 # pdf2image>=1.16.0     # PDF vision mode (also needs poppler system package)
+
+# OpenDataLoader PDF (optional: pip install opendataloader-pdf)
+# Requires Java 11+: brew install openjdk@21
+# opendataloader-pdf>=2.2.0    # High-quality PDF extraction with table support

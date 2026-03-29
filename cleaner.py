@@ -172,6 +172,22 @@ def create_ai_backend(ai_mode, config):
         vision_models = ollama_config.get("vision_models")
         return OllamaBackend(model=model, host=host, vision_models=vision_models)
 
+    if ai_mode == "mlx":
+        try:
+            from ai.mlx import MLXBackend
+        except ImportError:
+            logger.error(
+                "MLX backend requires mlx-lm. "
+                "Install with: pip install mlx-lm\n"
+                "Only available on Apple Silicon Macs."
+            )
+            sys.exit(EXIT_NO_INPUT)
+
+        mlx_config = ai_config.get("mlx", {})
+        model = mlx_config.get("model", "mlx-community/Qwen3-4B-4bit")
+        max_tokens = mlx_config.get("max_tokens", 4096)
+        return MLXBackend(model=model, max_tokens=max_tokens)
+
     logger.error(f"Unknown AI backend: {ai_mode}")
     sys.exit(EXIT_NO_INPUT)
 
@@ -200,21 +216,26 @@ def parse_file(filepath, config):
                 f"  Missing: {e.name or e}"
             )
 
-        # Decrypt if needed
+        # Decrypt if needed (before ODL or PyMuPDF extraction)
         password = pdf_config.get("password") or os.getenv("PDF_PASSWORD")
         target = filepath
         if password:
-            output_dir = pdf_config.get("decrypt_dir")
-            decrypted = pdf.decrypt_pdf(filepath, password=password, output_dir=output_dir)
+            decrypt_dir = pdf_config.get("decrypt_dir")
+            decrypted = pdf.decrypt_pdf(filepath, password=password, output_dir=decrypt_dir)
             if decrypted:
                 target = decrypted
 
-        # Classify and extract
-        pdf_type, raw_text, metadata = classify(target)
+        # Try ODL extraction first (high-quality, table-aware)
+        odl_text = pdf.extract_text_odl(target)
+
+        # Classify (ODL text informs the decision if available)
+        pdf_type, raw_text, metadata = classify(target, odl_text=odl_text)
 
         cutoff_patterns = config.get("ad_truncation_patterns")
+        strip_patterns = config.get("ad_strip_patterns")
         strip_urls = config.get("strip_urls", True)
-        text = clean_text(raw_text, cutoff_patterns=cutoff_patterns, strip_urls=strip_urls)
+        text = clean_text(raw_text, cutoff_patterns=cutoff_patterns,
+                          strip_patterns=strip_patterns, strip_urls=strip_urls)
 
         if pdf_type in (PdfType.SCANNED, PdfType.LAYOUT_BROKEN):
             dpi = pdf_config.get("dpi", 200)
@@ -454,7 +475,7 @@ def main():
     parser.add_argument("--input", "-i", required=True, help="file or directory to process")
     parser.add_argument("--output-dir", "-o", default="./output", help="output directory (default: ./output)")
     parser.add_argument("--config", default=None, help="path to config JSON (default: <script-dir>/config.json)")
-    parser.add_argument("--ai", choices=["gemini", "groq", "ollama", "none"], default=None, help="AI backend (default: from config or gemini)")
+    parser.add_argument("--ai", choices=["gemini", "groq", "ollama", "mlx", "none"], default=None, help="AI backend (default: from config or gemini)")
     parser.add_argument("--password", default=None, help="PDF decryption password (overrides .env and config)")
     parser.add_argument("--summary", action="store_true", help="print JSON summary to stdout after processing")
     parser.add_argument("--dry-run", action="store_true", help="preview without writing files")

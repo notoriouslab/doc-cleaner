@@ -6,6 +6,7 @@ config.json
 # Output files (keep the module code: output/__init__.py, output/markdown.py)
 output/*.md
 output/*/
+test-output/
 
 # Python
 __pycache__/
@@ -16,3 +17,6 @@ venv/
 
 # macOS
 .DS_Store
+
+# Spectra app data
+.spectra/

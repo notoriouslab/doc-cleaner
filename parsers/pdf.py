@@ -2,15 +2,124 @@
 PDF parser — decrypt + native text extraction + image extraction for vision mode.
 
 Supports:
+- High-quality extraction via opendataloader-pdf (optional, preferred)
 - Decryption via pikepdf (optional, graceful skip)
-- Native text extraction via PyMuPDF (fitz)
+- Native text extraction via PyMuPDF (fitz) as fallback
 - Image extraction via pdf2image (optional, for AI vision mode)
 - Image optimization (RGB, max 1600px) to save tokens
 """
 import os
+import re
+import glob
+import shutil
 import logging
+import subprocess
 
 logger = logging.getLogger(__name__)
+
+# --- opendataloader-pdf (ODL) support ---
+
+_odl_available_cache = None
+
+
+def odl_available():
+    """
+    Check if opendataloader-pdf and Java are both available.
+    Result is cached for the session lifetime.
+    """
+    global _odl_available_cache
+    if _odl_available_cache is not None:
+        return _odl_available_cache
+
+    # Check Python package
+    try:
+        import opendataloader_pdf  # noqa: F401
+    except ImportError:
+        logger.debug("opendataloader-pdf not installed — ODL extraction unavailable")
+        _odl_available_cache = False
+        return False
+
+    # Check Java
+    try:
+        subprocess.run(
+            ["java", "-version"],
+            capture_output=True, timeout=5,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        logger.debug("Java not available on PATH — ODL extraction unavailable")
+        _odl_available_cache = False
+        return False
+
+    _odl_available_cache = True
+    return True
+
+
+def clean_odl_output(text):
+    """
+    Post-process opendataloader-pdf output:
+    - Remove ![image N](...) lines
+    - Compress 3+ consecutive blank lines to 1
+    - Strip leading/trailing whitespace
+    """
+    # Remove image reference lines
+    text = re.sub(r"^!\[image \d+\]\([^)]*\)\s*$", "", text, flags=re.MULTILINE)
+    # Compress 3+ blank lines to 1
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def extract_text_odl(filepath):
+    """
+    Extract text from a PDF using opendataloader-pdf (Fast mode).
+
+    Returns Markdown string on success, None on failure.
+    ODL writes a .md file and *_images/ dir as side effects — both are cleaned up.
+    """
+    if not odl_available():
+        return None
+
+    try:
+        from opendataloader_pdf import convert
+        convert(filepath, format="markdown")
+
+        # ODL writes output alongside the input file
+        stem = os.path.splitext(filepath)[0]
+        md_path = stem + ".md"
+        images_dir = stem + "_images"
+
+        if not os.path.exists(md_path):
+            logger.debug(f"ODL produced no output file for {os.path.basename(filepath)}")
+            return None
+
+        with open(md_path, "r", encoding="utf-8") as f:
+            text = f.read()
+
+        # Cleanup side-effect files
+        try:
+            os.remove(md_path)
+        except OSError:
+            pass
+        if os.path.isdir(images_dir):
+            try:
+                shutil.rmtree(images_dir)
+            except OSError:
+                pass
+        # Also clean up any glob pattern images dirs
+        for d in glob.glob(stem + "_images*"):
+            if os.path.isdir(d):
+                try:
+                    shutil.rmtree(d)
+                except OSError:
+                    pass
+
+        if not text or not text.strip():
+            return None
+
+        return clean_odl_output(text)
+
+    except Exception as e:
+        logger.debug(f"ODL extraction failed for {os.path.basename(filepath)}: {e}")
+        return None
 
 try:
     import fitz
