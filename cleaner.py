@@ -78,6 +78,7 @@ def warn_config_secrets(config):
     secret_paths = [
         (["ai", "gemini", "api_key"], "GEMINI_API_KEY"),
         (["ai", "groq", "api_key"], "GROQ_API_KEY"),
+        (["ai", "nvidia", "api_key"], "NVIDIA_API_KEY"),
         (["ai", "ollama", "api_key"], "OLLAMA_API_KEY"),
         (["pdf", "password"], "PDF_PASSWORD"),
     ]
@@ -149,6 +150,29 @@ def create_ai_backend(ai_mode, config):
         base_url = groq_config.get("base_url", "https://api.groq.com/openai/v1")
         timeout = groq_config.get("timeout", 120)
         return GroqBackend(
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            timeout=timeout,
+        )
+
+    if ai_mode == "nvidia":
+        from ai.nvidia import NvidiaBackend
+
+        api_key = os.getenv("NVIDIA_API_KEY")
+        if not api_key:
+            logger.error(
+                "NVIDIA_API_KEY not set. Add it to your .env file:\n"
+                "  echo 'NVIDIA_API_KEY=nvapi-your-key-here' >> .env\n"
+                "Get a free key at https://build.nvidia.com"
+            )
+            sys.exit(EXIT_NO_INPUT)
+
+        nvidia_config = ai_config.get("nvidia", {})
+        model = nvidia_config.get("model", "meta/llama-3.2-90b-vision-instruct")
+        base_url = nvidia_config.get("base_url", "https://integrate.api.nvidia.com/v1")
+        timeout = nvidia_config.get("timeout", 180)
+        return NvidiaBackend(
             api_key=api_key,
             model=model,
             base_url=base_url,
@@ -475,7 +499,7 @@ def main():
     parser.add_argument("--input", "-i", required=True, help="file or directory to process")
     parser.add_argument("--output-dir", "-o", default="./output", help="output directory (default: ./output)")
     parser.add_argument("--config", default=None, help="path to config JSON (default: <script-dir>/config.json)")
-    parser.add_argument("--ai", choices=["gemini", "groq", "ollama", "mlx", "none"], default=None, help="AI backend (default: from config or gemini)")
+    parser.add_argument("--ai", choices=["gemini", "groq", "nvidia", "ollama", "mlx", "none"], default=None, help="AI backend (default: from config or gemini)")
     parser.add_argument("--password", default=None, help="PDF decryption password (overrides .env and config)")
     parser.add_argument("--summary", action="store_true", help="print JSON summary to stdout after processing")
     parser.add_argument("--dry-run", action="store_true", help="preview without writing files")
