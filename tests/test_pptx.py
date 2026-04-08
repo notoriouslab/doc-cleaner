@@ -85,8 +85,9 @@ class TestPptxTextExtraction:
 
     def test_empty_slides_omitted(self, pptx_empty_slide):
         result = parse(pptx_empty_slide)
-        # Empty first slide should be omitted; second slide is ## Slide 2
-        assert "## Slide 2" in result
+        # Empty first slide omitted; second slide renumbered to ## Slide 1
+        assert "## Slide 1" in result
+        assert "## Slide 2" not in result
         assert "Only Real Slide" in result
 
 

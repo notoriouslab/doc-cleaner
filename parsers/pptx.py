@@ -65,6 +65,7 @@ def _parse_pptx(filepath):
         return ""
 
     parts = []
+    slide_num = 0
 
     for idx, slide in enumerate(prs.slides, 1):
         if idx > MAX_SLIDES:
@@ -91,7 +92,8 @@ def _parse_pptx(filepath):
         if not slide_parts and not notes_text:
             continue
 
-        section = [f"## Slide {idx}\n"]
+        slide_num += 1
+        section = [f"## Slide {slide_num}\n"]
         if slide_parts:
             section.append("\n\n".join(slide_parts))
         if notes_text:

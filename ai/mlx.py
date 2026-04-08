@@ -23,13 +23,14 @@ class MLXBackend(AIBackend):
         self._max_tokens = max_tokens
         self._model = None
         self._tokenizer = None
+        self._generate = None
 
     def _load_model(self):
-        """Lazy-load model on first call to avoid startup delay."""
+        """Lazy-load model and generate function on first call."""
         if self._model is not None:
             return
         try:
-            from mlx_lm import load
+            from mlx_lm import load, generate
         except ImportError:
             raise ImportError(
                 "mlx-lm is required for the MLX backend. "
@@ -37,6 +38,7 @@ class MLXBackend(AIBackend):
             )
         logger.info(f"Loading MLX model: {self._model_name} (first call, may take a moment)")
         self._model, self._tokenizer = load(self._model_name)
+        self._generate = generate
         logger.info("MLX model loaded.")
 
     def call(self, prompt: str, images: Optional[list] = None, text: Optional[str] = None) -> str:
@@ -51,14 +53,6 @@ class MLXBackend(AIBackend):
         Returns:
             raw model response text
         """
-        try:
-            from mlx_lm import generate
-        except ImportError:
-            raise ImportError(
-                "mlx-lm is required for the MLX backend. "
-                "Install with: pip install mlx-lm"
-            )
-
         self._load_model()
 
         if images:
@@ -86,7 +80,7 @@ class MLXBackend(AIBackend):
             formatted = full_prompt
 
         try:
-            response = generate(
+            response = self._generate(
                 self._model,
                 self._tokenizer,
                 prompt=formatted,
