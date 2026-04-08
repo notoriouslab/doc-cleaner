@@ -19,13 +19,8 @@ venv/
 # macOS
 .DS_Store
 
-# Spectra (internal workflow, not for public distribution)
-.spectra/
-openspec/
-.claude/skills/spectra-*/
-
-# Spectra / Claude Code (local dev config, not part of the project)
-.spectra/
-openspec/
+# Claude Code / Spectra (local dev config, not part of the project)
 .claude/
+.spectra/
+openspec/
 CLAUDE.md

@@ -1,5 +1,9 @@
 # doc-cleaner
 
+[![GitHub release](https://img.shields.io/github/v/release/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-green.svg)](https://www.python.org/)
+
 Convert PDF, DOCX, XLSX, PPTX, DXF, and text files to clean, structured Markdown — CJK-friendly, table-friendly, privacy-first.
 
 **Requires Python 3.9+** · Part of the [notoriouslab](https://github.com/notoriouslab) open-source toolkit.

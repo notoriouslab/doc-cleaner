@@ -1,5 +1,9 @@
 # doc-cleaner
 
+[![GitHub release](https://img.shields.io/github/v/release/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-green.svg)](https://www.python.org/)
+
 將 PDF、DOCX、XLSX、PPTX、DXF 及純文字檔轉換為乾淨的結構化 Markdown。
 
 中文友好、表格友好、隱私優先。
