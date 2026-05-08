@@ -1,14 +1,20 @@
+<div align="center">
+
 # doc-cleaner
 
 [![GitHub release](https://img.shields.io/github/v/release/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-green.svg)](https://www.python.org/)
+[![Supported Formats](https://img.shields.io/badge/Formats-12+-orange.svg)](#支援格式完整表)
+[![Last Commit](https://img.shields.io/github/last-commit/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner)
 
 **結構化文件轉 Markdown —— 支援 PDF、DOCX、XLSX、PPTX、PPT、DOC、DXF、純文字。中文友好、表格保留、隱私優先。**
 
 屬於 [notoriouslab](https://github.com/notoriouslab) 開源工具組的一員 · 需要 Python 3.9+
 
-> [English README](README.en.md)
+[English README](README.en.md)
+
+</div>
 
 ---
 

@@ -1,14 +1,20 @@
+<div align="center">
+
 # doc-cleaner
 
 [![GitHub release](https://img.shields.io/github/v/release/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-green.svg)](https://www.python.org/)
+[![Supported Formats](https://img.shields.io/badge/Formats-12+-orange.svg)](#supported-formats-reference)
+[![Last Commit](https://img.shields.io/github/last-commit/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner)
 
 **Structured document-to-Markdown conversion — supports PDF, DOCX, XLSX, PPTX, PPT, DOC, DXF, and plain text. CJK-first, table preservation, privacy-first.**
 
 Part of the [notoriouslab](https://github.com/notoriouslab) open-source toolkit · Requires Python 3.9+
 
-> [中文 README](README.md)
+[中文 README](README.md)
+
+</div>
 
 ---
 
