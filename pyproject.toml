@@ -1,0 +1,50 @@
+[tool.briefcase]
+project_name = "DocCleaner"
+bundle = "com.notoriouslab"
+version = "1.3.0"
+url = "https://github.com/notoriouslab/doc-cleaner"
+license = "MIT"
+author = "notoriouslab"
+author_email = "sitedirector@gmail.com"
+
+[tool.briefcase.app.macapp]
+formal_name = "Doc Cleaner"
+description = "Convert documents to clean Markdown — 純提取，零設定"
+icon = "resources/icon"
+sources = [
+    "macapp",
+    "core.py",
+    "cleaner.py",
+    "parsers",
+    "classifiers",
+    "ai",
+    "output",
+    "prompts",
+]
+requires = [
+    # proxy_tools: pywebview dependency, source-only on PyPI (can't install with
+    # --only-binary :all:). Vendored wheel in vendor_wheels/ solves this.
+    "proxy_tools @ file:///Users/jacobmei/Projects/notoriouslab/doc-cleaner/vendor_wheels/proxy_tools-0.1.0-py3-none-any.whl",
+    # GUI
+    "pywebview==6.2.1",
+    # PDF / document parsing
+    "PyMuPDF>=1.23.0",
+    "python-docx>=0.8.11",
+    # Spreadsheets — pandas pinned for cross-arch determinism (D3)
+    "pandas==2.2.3",
+    "numpy>=2.4,<3",
+    "openpyxl>=3.0.0",
+    "xlrd>=2.0.1",
+    # Presentation
+    "python-pptx>=0.6.21",
+    # DXF engineering drawings
+    "ezdxf>=1.0.0",
+    # Image support (PDF vision mode, not bundled in GUI but pulled by PyMuPDF)
+    "Pillow>=9.0.0",
+    # tabulate: required by pandas.DataFrame.to_markdown() for pipe-table output
+    "tabulate>=0.8.0",
+    # Excluded per design D1: pdf2image, pikepdf, poppler, google-genai, ollama
+]
+
+[tool.briefcase.app.macapp.macOS]
+requires = []

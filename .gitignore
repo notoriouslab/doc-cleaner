@@ -19,6 +19,12 @@ venv/
 # macOS
 .DS_Store
 
+# Briefcase build artifacts
+build/
+dist/
+logs/
+*.iconset/
+
 # Claude Code / Spectra (local dev config, not part of the project)
 .claude/
 .spectra/

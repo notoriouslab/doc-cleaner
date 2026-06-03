@@ -3,6 +3,7 @@ PyMuPDF>=1.23.0
 python-docx>=0.8.11
 pandas>=1.5.0
 openpyxl>=3.0.0
+xlrd>=2.0.1
 Pillow>=9.0.0
 
 # Gemini AI backend (optional: pip install google-genai python-dotenv)
@@ -29,3 +30,6 @@ Pillow>=9.0.0
 
 # PowerPoint extraction (optional: pip install python-pptx)
 # python-pptx>=0.6.21
+
+# macOS GUI (optional: pip install pywebview — macOS app only)
+# pywebview>=5.0.0

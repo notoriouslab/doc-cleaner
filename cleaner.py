@@ -573,10 +573,6 @@ def main():
     # AI mode priority: CLI --ai > config.json > default "gemini"
     ai_mode = args.ai or config.get("ai", {}).get("backend", "gemini")
 
-    # AI backend
-    ai_backend = create_ai_backend(ai_mode, config)
-    prompt = load_prompt(config, config_path=config_path) if ai_backend else None
-
     # Collect files
     files = collect_files(args.input)
     if not files:
@@ -587,17 +583,24 @@ def main():
     if args.dry_run:
         logger.info("[DRY RUN] No files will be written.")
 
-    # Process
-    results = []
-    for filepath in files:
-        status, output_path = process_file(
-            filepath, ai_backend, prompt, config, args.output_dir, dry_run=args.dry_run,
-        )
-        results.append({
-            "file": os.path.basename(filepath),
-            "output": os.path.relpath(output_path) if output_path else None,
-            "status": status,
-        })
+    # Process (delegates to core.py — config+backend+prompt built once and reused)
+    from core import convert_files
+    raw_results = convert_files(
+        files,
+        output_resolver=lambda _: args.output_dir,
+        ai=ai_mode,
+        config=config,
+        config_path=config_path,
+        dry_run=args.dry_run,
+    )
+    results = [
+        {
+            "file": r["file"],
+            "output": os.path.relpath(r["output"]) if r["output"] else None,
+            "status": r["status"],
+        }
+        for r in raw_results
+    ]
 
     success = sum(1 for r in results if r["status"] in ("ok", "dry_run"))
     logger.info(f"Done: {success}/{len(files)} files processed.")

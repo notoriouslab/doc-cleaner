@@ -39,6 +39,10 @@ def parse(filepath, max_chars_per_sheet=8000):
             if df is None:
                 df = pd.read_csv(filepath, encoding="utf-8", encoding_errors="replace")
             sheets = {"CSV": df}
+        elif ext == ".xls":
+            # xlrd 2.x only supports .xls — explicit engine prevents ImportError
+            # on environments where openpyxl is present but xlrd is not
+            sheets = pd.read_excel(filepath, sheet_name=None, engine="xlrd")
         else:
             sheets = pd.read_excel(filepath, sheet_name=None)
 

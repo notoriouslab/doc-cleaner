@@ -36,7 +36,8 @@ def convert_to_text(filepath, format_label="file"):
             temp_txt = os.path.join(tmpdir, "out.txt")
             subprocess.run(
                 # list args (not shell=True) — safe from shell injection
-                ["textutil", "-convert", "txt", filepath, "-output", temp_txt],
+                # Absolute path: Finder/LaunchServices launch sets a minimal PATH
+                ["/usr/bin/textutil", "-convert", "txt", filepath, "-output", temp_txt],
                 check=True,
                 capture_output=True,
                 timeout=TEXTUTIL_TIMEOUT,
