@@ -86,6 +86,27 @@ class TestConvertLegacyOfficeLibreOfficePresent:
 
         assert result == "text"
 
+    def test_glob_picks_largest_when_multiple_txt(self, tmp_path):
+        """When LibreOffice outputs multiple .txt files, the largest is chosen."""
+        from parsers import _platform
+
+        dummy = str(tmp_path / "notes.ppt")
+        Path(dummy).write_bytes(b"dummy")
+
+        def _fake_run(cmd, **kw):
+            outdir = cmd[cmd.index("--outdir") + 1]
+            (Path(outdir) / "notes.txt").write_text("main content " * 100, encoding="utf-8")
+            (Path(outdir) / "notes_notes.txt").write_text("short", encoding="utf-8")
+            return MagicMock(returncode=0)
+
+        with patch.object(_platform, "SYSTEM", "Linux"), \
+             patch("parsers._platform._find_libreoffice", return_value="/usr/bin/soffice"), \
+             patch("parsers._platform.subprocess.run", side_effect=_fake_run):
+            result = _platform.convert_legacy_office(dummy, "PPT")
+
+        assert "main content" in result
+        assert "short" not in result
+
 
 # ── reveal_in_file_manager ────────────────────────────────────────────────────
 

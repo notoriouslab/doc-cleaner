@@ -59,9 +59,14 @@ def _libreoffice_to_text(filepath: str, format_label: str) -> str:
                 capture_output=True,
                 timeout=60,
             )
-            # P4: scan for any .txt output instead of assuming the exact filename,
-            # since LibreOffice may use a different stem on some versions.
-            txt_files = list(Path(tmpdir).glob("*.txt"))
+            # Scan for any .txt output — LibreOffice may use a different stem.
+            # Sort by size descending: the primary text file is typically the
+            # largest; notes/auxiliary files are smaller.
+            txt_files = sorted(
+                Path(tmpdir).glob("*.txt"),
+                key=lambda f: f.stat().st_size,
+                reverse=True,
+            )
             if txt_files:
                 text = txt_files[0].read_text(encoding="utf-8", errors="replace")
                 if text.strip():
@@ -109,9 +114,11 @@ def reveal_in_file_manager(path: str) -> None:
         subprocess.run(["/usr/bin/open", "-R", path], check=False)
     elif SYSTEM == "Windows":
         # Use %SystemRoot% so we don't rely on PATH ordering (P3).
-        # Pass a string (not a list) so subprocess bypasses list2cmdline's
-        # double-quoting, letting CreateProcess receive the exact format
-        # Explorer expects: "explorer.exe" /select,"path with spaces" (P2).
+        # Pass a string with shell=False: on Windows, subprocess passes the
+        # string directly to CreateProcess (lpCommandLine), bypassing
+        # list2cmdline's double-quoting that would corrupt paths with spaces.
+        # NOTE: string+shell=False raises FileNotFoundError on POSIX — this
+        # branch is never reached there (guarded by SYSTEM == "Windows").
         system_root = os.environ.get("SystemRoot", r"C:\Windows")
         explorer = str(Path(system_root) / "explorer.exe")
         cmd = f'"{explorer}" /select,"{path}"'
