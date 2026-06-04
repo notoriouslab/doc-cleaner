@@ -255,10 +255,12 @@ def parse_file(filepath, config):
         # Classify (ODL text informs the decision if available)
         pdf_type, raw_text, metadata = classify(target, odl_text=odl_text)
 
-        # For NATIVE PDFs without ODL: re-extract with table detection so
-        # tables are preserved as Markdown pipe tables instead of being
-        # flattened to plain text by page.get_text().
-        if pdf_type == PdfType.NATIVE and odl_text is None:
+        # For NATIVE and LAYOUT_BROKEN PDFs without ODL: re-extract with table
+        # detection so tables are preserved as Markdown pipe tables.
+        # LAYOUT_BROKEN is triggered when short_line_ratio > 70% — a PDF
+        # that is mostly tables fires this heuristic because table cells create
+        # many short lines, but find_tables() can still recover the structure.
+        if pdf_type in (PdfType.NATIVE, PdfType.LAYOUT_BROKEN) and odl_text is None:
             table_text = pdf.extract_text_with_tables(target)
             if table_text:
                 raw_text = table_text
