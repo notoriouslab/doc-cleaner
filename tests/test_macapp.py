@@ -1,5 +1,6 @@
 """Unit tests for macapp.app — Python-JS bridge (tasks 3.1–3.5)."""
 import json
+import platform
 import re
 import threading
 from pathlib import Path
@@ -170,12 +171,19 @@ class TestResultDisplay:
 # ── Task 3.4: reveal_in_finder + output-mode resolver ───────────────────────
 
 class TestRevealInFinder:
+    # reveal_in_finder delegates to parsers._platform.reveal_in_file_manager;
+    # patch the subprocess there, not in macapp.app.
+
+    @pytest.mark.skipif(
+        platform.system() != "Darwin",
+        reason="macOS-specific: open -R is not used on other platforms",
+    )
     def test_reveal_calls_open_r(self, tmp_path):
-        """reveal_in_finder runs /usr/bin/open -R <path> for a valid absolute path."""
+        """reveal_in_finder runs /usr/bin/open -R <path> on macOS."""
         api = _make_api()
         test_path = str(tmp_path / "result.md")
 
-        with patch("macapp.app.subprocess.run") as mock_run:
+        with patch("parsers._platform.subprocess.run") as mock_run:
             api.reveal_in_finder(test_path)
 
         mock_run.assert_called_once_with(
@@ -185,14 +193,14 @@ class TestRevealInFinder:
     def test_reveal_rejects_relative_path(self):
         """reveal_in_finder silently ignores non-absolute paths."""
         api = _make_api()
-        with patch("macapp.app.subprocess.run") as mock_run:
+        with patch("parsers._platform.subprocess.run") as mock_run:
             api.reveal_in_finder("relative/path/file.md")
         mock_run.assert_not_called()
 
     def test_reveal_rejects_url_scheme(self):
         """reveal_in_finder silently ignores paths with URL schemes."""
         api = _make_api()
-        with patch("macapp.app.subprocess.run") as mock_run:
+        with patch("parsers._platform.subprocess.run") as mock_run:
             api.reveal_in_finder("smb://attacker.example.com/share")
         mock_run.assert_not_called()
 

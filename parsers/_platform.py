@@ -4,15 +4,19 @@ Platform-specific utilities for document conversion and file management.
 Single source of truth for all platform branches so callers never need to
 check platform.system() themselves.
 
-macOS  — textutil (system built-in) for legacy Office; Finder for reveal
-Windows — LibreOffice headless for legacy Office (if installed); Explorer for reveal
-Linux  — LibreOffice headless; xdg-open parent directory for reveal
+macOS   — textutil (system built-in) for legacy Office; Finder for reveal
+Windows — LibreOffice --headless for legacy Office (if installed); Explorer for reveal
+Linux   — LibreOffice --headless; xdg-open parent directory for reveal
 """
+from __future__ import annotations   # P1: allows str|None on Python 3.9
+
 import logging
+import os
 import platform
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +59,11 @@ def _libreoffice_to_text(filepath: str, format_label: str) -> str:
                 capture_output=True,
                 timeout=60,
             )
-            out_path = Path(tmpdir) / (Path(filepath).stem + ".txt")
-            if out_path.exists():
-                text = out_path.read_text(encoding="utf-8", errors="replace")
+            # P4: scan for any .txt output instead of assuming the exact filename,
+            # since LibreOffice may use a different stem on some versions.
+            txt_files = list(Path(tmpdir).glob("*.txt"))
+            if txt_files:
+                text = txt_files[0].read_text(encoding="utf-8", errors="replace")
                 if text.strip():
                     return text
     except subprocess.TimeoutExpired:
@@ -67,10 +73,10 @@ def _libreoffice_to_text(filepath: str, format_label: str) -> str:
     return ""
 
 
-def _find_libreoffice() -> str | None:
-    """Return path to soffice/LibreOffice executable, or None if not found."""
+def _find_libreoffice() -> Optional[str]:
+    """Return path to soffice executable, or None if not found."""
     import shutil
-    # Standard Windows install locations
+    # Standard Windows install locations (checked first, avoids PATH pollution risk)
     win_paths = [
         r"C:\Program Files\LibreOffice\program\soffice.exe",
         r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
@@ -78,7 +84,7 @@ def _find_libreoffice() -> str | None:
     for p in win_paths:
         if Path(p).exists():
             return p
-    # PATH lookup (Linux + non-standard Windows)
+    # PATH lookup (Linux + non-standard Windows installs)
     return shutil.which("soffice") or shutil.which("libreoffice")
 
 
@@ -90,8 +96,8 @@ def reveal_in_file_manager(path: str) -> None:
 
     Rejects relative paths and URL schemes as a defence-in-depth measure.
 
-    macOS   → Finder  (open -R)
-    Windows → Explorer (explorer /select,)
+    macOS   → Finder   (/usr/bin/open -R)
+    Windows → Explorer (%SystemRoot%\\explorer.exe /select,"<path>")
     Linux   → opens the parent directory (xdg-open)
     """
     if not isinstance(path, str) or not Path(path).is_absolute():
@@ -102,7 +108,10 @@ def reveal_in_file_manager(path: str) -> None:
     if SYSTEM == "Darwin":
         subprocess.run(["/usr/bin/open", "-R", path], check=False)
     elif SYSTEM == "Windows":
-        # /select, highlights the file; comma+space before path is required
-        subprocess.run(["explorer", f"/select,{path}"], check=False)
+        # P2+P3: quote the path so spaces work; use %SystemRoot% for the
+        # explorer executable so it doesn't rely on PATH ordering.
+        system_root = os.environ.get("SystemRoot", r"C:\Windows")
+        explorer = str(Path(system_root) / "explorer.exe")
+        subprocess.run([explorer, f'/select,"{path}"'], check=False)
     else:
         subprocess.run(["xdg-open", str(Path(path).parent)], check=False)
