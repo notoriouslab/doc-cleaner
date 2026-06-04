@@ -10,7 +10,7 @@ author_email = "sitedirector@gmail.com"
 
 [tool.briefcase.app.macapp]
 formal_name = "Doc Cleaner"
-description = "Convert documents to clean Markdown — 純提取，零設定"
+description = "Convert documents to clean Markdown. Zero config, zero API key."
 icon = "resources/icon"
 sources = [
     "macapp",
