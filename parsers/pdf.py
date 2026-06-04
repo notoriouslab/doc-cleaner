@@ -296,6 +296,41 @@ def extract_images(filepath, dpi=200, max_pages=15):
         return []
 
 
+def _clean_table_md(md: str) -> str:
+    """
+    Post-process PyMuPDF to_markdown() output:
+
+    1. Remove <br> tags (multi-line cell content → single space).
+    2. If the first row is all "ColN" placeholders (PyMuPDF fallback when it
+       cannot detect a real header), promote the first data row as the header.
+    3. Remove consecutive duplicate rows (artifacts of merged/spanned cells
+       that PyMuPDF expands into repeated identical rows).
+    """
+    # 1. Strip <br>
+    md = re.sub(r'\s*<br>\s*', ' ', md)
+
+    lines = md.strip().split('\n')
+    if not lines:
+        return md
+
+    # 2. ColN → real header promotion
+    if re.match(r'^\|\s*Col\d+(\|\s*Col\d+)*\s*\|$', lines[0].strip()):
+        # lines[0] = ColN header, lines[1] = |---|, lines[2] = first data row
+        if len(lines) > 2 and re.match(r'^\|[-| ]+\|$', lines[1].strip()):
+            lines[0] = lines[2]   # promote first data row to header
+            del lines[2]          # remove duplicate data row
+
+    # 3. Remove consecutive duplicate rows
+    deduped: list = []
+    prev = None
+    for line in lines:
+        if line != prev:
+            deduped.append(line)
+        prev = line
+
+    return '\n'.join(deduped)
+
+
 def extract_text_with_tables(filepath):
     """
     Extract PDF text with table detection, preserving table structure as Markdown.
@@ -310,9 +345,28 @@ def extract_text_with_tables(filepath):
         return None
     try:
         parts_all_pages = []
+        seen_table_sigs: set = set()
         with fitz.open(filepath) as doc:
             for page in doc:
-                parts_all_pages.append(_extract_page_text_with_tables(page))
+                page_text = _extract_page_text_with_tables(page)
+                if page_text:
+                    # Cross-page deduplication: identical tables on consecutive pages
+                    # (e.g. a table that spans a page break is detected on both pages).
+                    # Use the first two header lines as a signature.
+                    table_lines = [l for l in page_text.split('\n') if l.startswith('|')]
+                    if table_lines:
+                        sig = '\n'.join(table_lines[:2])
+                        if sig in seen_table_sigs:
+                            # Strip duplicate table, keep only non-table text
+                            non_table = '\n'.join(
+                                l for l in page_text.split('\n')
+                                if not l.startswith('|')
+                            ).strip()
+                            if non_table:
+                                parts_all_pages.append(non_table)
+                            continue
+                        seen_table_sigs.add(sig)
+                    parts_all_pages.append(page_text)
         result = "\n\n".join(p for p in parts_all_pages if p)
         return result or None
     except Exception as e:
@@ -334,9 +388,7 @@ def _extract_page_text_with_tables(page):
             tbl_rect = fitz.Rect(tbl.bbox)
             table_rects.append(tbl_rect)
             md = tbl.to_markdown()
-            # to_markdown() uses <br> for multi-line cell content (e.g. numbers
-            # split across lines in the PDF). Replace with a space for clean output.
-            md = re.sub(r'\s*<br>\s*', ' ', md)
+            md = _clean_table_md(md)
             table_entries.append((tbl.bbox[1], md))
 
         # Get text blocks, excluding those that overlap significantly with tables
