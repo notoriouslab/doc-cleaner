@@ -333,7 +333,11 @@ def _extract_page_text_with_tables(page):
         for tbl in finder.tables:
             tbl_rect = fitz.Rect(tbl.bbox)
             table_rects.append(tbl_rect)
-            table_entries.append((tbl.bbox[1], tbl.to_markdown()))
+            md = tbl.to_markdown()
+            # to_markdown() uses <br> for multi-line cell content (e.g. numbers
+            # split across lines in the PDF). Replace with a space for clean output.
+            md = re.sub(r'\s*<br>\s*', ' ', md)
+            table_entries.append((tbl.bbox[1], md))
 
         # Get text blocks, excluding those that overlap significantly with tables
         text_entries = []
