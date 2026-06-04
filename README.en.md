@@ -5,7 +5,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-green.svg)](https://www.python.org/)
-[![Supported Formats](https://img.shields.io/badge/Formats-12+-orange.svg)](#supported-formats-reference)
+[![Supported Formats](https://img.shields.io/badge/Formats-11-orange.svg)](#supported-formats-reference)
 [![Last Commit](https://img.shields.io/github/last-commit/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner)
 
 **Structured document-to-Markdown conversion — supports PDF, DOCX, XLSX, PPTX, PPT, DOC, DXF, and plain text. CJK-first, table preservation, privacy-first.**
@@ -13,6 +13,15 @@
 Part of the [notoriouslab](https://github.com/notoriouslab) open-source toolkit · Requires Python 3.9+
 
 [中文 README](README.md)
+
+### Download Desktop App (no Python required)
+
+| Platform | Download | Architecture |
+|----------|----------|--------------|
+| **macOS** | [Doc Cleaner-1.3.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.3.0/Doc.Cleaner-1.3.0.dmg) | Universal (Intel + Apple Silicon) |
+| **Windows** | [Doc Cleaner-1.3.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.3.0/Doc.Cleaner-1.3.0.msi) | x86_64 (runs on ARM Windows too) |
+
+> **First launch on macOS:** Right-click → Open (Ventura and earlier) or System Settings → Privacy & Security → Open Anyway (Sonoma/Sequoia)
 
 </div>
 
@@ -23,8 +32,9 @@ Part of the [notoriouslab](https://github.com/notoriouslab) open-source toolkit 
 Most document-to-Markdown tools either drop tables, mangle CJK text, or require cloud uploads. **doc-cleaner was built for Traditional Chinese from day one**, and preserves tables completely.
 
 **Typical use cases:**
+- 🖥️ **Desktop App** — Drag-and-drop files, zero config, double-click on macOS/Windows (non-technical users)
 - 📊 **Financial statements** — Big5/CP950 auto-detected, transactions and numbers extracted perfectly
-- 📄 **Batch multi-format** — Mix PDF/DOCX/XLSX/PPTX inputs, unified Markdown output
+- 📄 **Batch multi-format** — Mix PDF/DOCX/XLSX/PPTX inputs, unified Markdown output (CLI)
 - 🔒 **Privacy-first** — Optional local Ollama, documents never leave your machine
 - 🤖 **AI agent integration** — OpenClaw and similar frameworks can shell-call it with `SKILL.md` support
 
@@ -32,13 +42,19 @@ Most document-to-Markdown tools either drop tables, mangle CJK text, or require 
 
 | Feature | Implementation |
 |---------|-----------------|
-| **Table preservation** | DOCX/XLSX → Markdown pipe tables; PDF tables extracted directly via opendataloader-pdf (no AI needed) |
+| **Table preservation** | DOCX/XLSX → Markdown pipe tables; PDF tables detected via PyMuPDF find_tables(), no extra install needed |
 | **Multi-format support** | PDF, DOCX, XLSX, PPTX, PPT, DOC, DXF, TXT, MD — one tool handles all |
 | **Privacy & no-AI mode** | `--ai none` for zero API keys; or use local Ollama for on-device inference |
 
 ---
 
-## Quick Start (3 steps)
+## Quick Start
+
+### Option A: Desktop App (non-technical users)
+
+Download the DMG (macOS) or MSI (Windows) from the table above — no Python required.
+
+### Option B: CLI (3 steps)
 
 ```bash
 # 1. Clone
@@ -264,15 +280,15 @@ Table reconstruction is demanding; small models struggle. If your machine has re
 
 | Format | Parser | Tables | Notes |
 |--------|--------|--------|-------|
-| **PDF (native)** | opendataloader-pdf / PyMuPDF | pipe tables / AI rebuild | ODL preferred |
-| **PDF (scanned)** | pdf2image → AI vision | AI rebuild | Needs poppler |
-| **PDF (encrypted)** | pikepdf | pipe tables / AI rebuild | Optional |
+| **PDF (native)** | PyMuPDF find_tables() / opendataloader-pdf | pipe tables | find_tables needs no extra install; ODL needs Java |
+| **PDF (scanned)** | pdf2image → AI vision | AI rebuild | Needs poppler (optional) |
+| **PDF (encrypted)** | pikepdf | pipe tables | Optional |
 | **DOCX** | python-docx | pipe tables | Cross-platform |
-| **XLSX / XLS** | pandas | pipe tables | All sheets |
-| **CSV** | pandas | pipe tables | Auto-detected |
-| **PPTX** | python-pptx | pipe tables | Slides + notes |
-| **PPT** | macOS textutil | — | Text only, macOS |
-| **DOC** | macOS textutil | — | Text only, macOS |
+| **XLSX / XLS** | pandas + xlrd | pipe tables | All sheets |
+| **CSV** | pandas | pipe tables | Auto-encoding detection |
+| **PPTX** | python-pptx | pipe tables | Slides + speaker notes |
+| **PPT** | macOS textutil / LibreOffice | — | macOS built-in; Windows needs LibreOffice |
+| **DOC** | macOS textutil / LibreOffice | — | macOS built-in; Windows needs LibreOffice |
 | **DXF** | ezdxf | — | Engineering: annotations, dimensions |
 | **TXT / MD** | stdlib | — | Big5/CP950/UTF-16 |
 

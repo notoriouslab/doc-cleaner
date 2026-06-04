@@ -5,7 +5,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-green.svg)](https://www.python.org/)
-[![Supported Formats](https://img.shields.io/badge/Formats-12+-orange.svg)](#支援格式完整表)
+[![Supported Formats](https://img.shields.io/badge/Formats-11-orange.svg)](#支援格式完整表)
 [![Last Commit](https://img.shields.io/github/last-commit/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner)
 
 **結構化文件轉 Markdown —— 支援 PDF、DOCX、XLSX、PPTX、PPT、DOC、DXF、純文字。中文友好、表格保留、隱私優先。**
@@ -13,6 +13,15 @@
 屬於 [notoriouslab](https://github.com/notoriouslab) 開源工具組的一員 · 需要 Python 3.9+
 
 [English README](README.en.md)
+
+### 下載桌面 App（無需 Python）
+
+| 平台 | 下載 | 架構 |
+|------|------|------|
+| **macOS** | [Doc Cleaner-1.3.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.3.0/Doc.Cleaner-1.3.0.dmg) | Universal（Intel + Apple Silicon） |
+| **Windows** | [Doc Cleaner-1.3.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.3.0/Doc.Cleaner-1.3.0.msi) | x86_64（含 ARM Windows） |
+
+> 首次開啟 macOS 版：右鍵 → 開啟（Ventura 以前）或系統設定 → 隱私權與安全性 → 仍要開啟（Sonoma/Sequoia）
 
 </div>
 
@@ -23,8 +32,9 @@
 市面上大多文件轉 Markdown 工具不是丟掉表格，就是搞壞中文字元，或得把機密文件上傳到雲端。**doc-cleaner 從第一天就為繁體中文設計**，並保留表格完整。
 
 **典型使用：**
+- 🖥️ **桌面 App** — 拖放文件，零設定，macOS/Windows 雙擊即用（非技術用戶首選）
 - 📊 **金融對帳單** — Big5/CP950 自動偵測，提取交易清單和數字完整無損
-- 📄 **多格式批處理** — PDF/DOCX/XLSX/PPTX 混合輸入，統一輸出 Markdown
+- 📄 **多格式批處理** — PDF/DOCX/XLSX/PPTX 混合輸入，統一輸出 Markdown（CLI）
 - 🔒 **隱私優先** — 選用 Ollama 本地推理，文件不上雲端
 - 🤖 **AI Agent 整合** — OpenClaw 等框架可直接 shell 呼叫，附帶 `SKILL.md` 支援
 
@@ -32,13 +42,20 @@
 
 | 特色 | 做法 |
 |------|------|
-| **表格保留** | DOCX/XLSX → Markdown pipe table；PDF 表格用 opendataloader-pdf 直接提取，不靠 AI 重建 |
+| **表格保留** | DOCX/XLSX → Markdown pipe table；PDF 表格用 PyMuPDF find_tables() 自動偵測，無需額外安裝 |
 | **多格式支援** | PDF、DOCX、XLSX、PPTX、PPT、DOC、DXF、TXT、MD —— 一個工具全搞定 |
 | **隱私 & 無 AI 模式** | `--ai none` 純文字提取（零 API key）；或用 Ollama 本地推理 |
 
 ---
 
-## 快速開始（三步）
+## 快速開始
+
+### 選項 A：桌面 App（非技術用戶）
+
+下載 DMG（macOS）或 MSI（Windows），安裝後拖放文件即用，不需要 Python。
+詳見上方「下載桌面 App」表格。
+
+### 選項 B：CLI（技術用戶，三步）
 
 ```bash
 # 1. Clone
@@ -264,15 +281,15 @@ doc-cleaner 內建 2 個提示詞範本：
 
 | 格式 | Parser | 表格 | 備註 |
 |------|--------|------|------|
-| **PDF（原生）** | opendataloader-pdf / PyMuPDF | pipe table / AI 重建 | ODL 優先 |
-| **PDF（掃描）** | pdf2image → AI 視覺 | AI 重建 | 需 poppler |
-| **PDF（加密）** | pikepdf | pipe table / AI 重建 | 選裝 |
+| **PDF（原生）** | PyMuPDF find_tables() / opendataloader-pdf | pipe table | find_tables 無需額外安裝；ODL 需 Java |
+| **PDF（掃描）** | pdf2image → AI 視覺 | AI 重建 | 需 poppler（選裝） |
+| **PDF（加密）** | pikepdf | pipe table | 選裝 |
 | **DOCX** | python-docx | pipe table | 跨平台 |
-| **XLSX / XLS** | pandas | pipe table | 全工作表 |
-| **CSV** | pandas | pipe table | 自動偵測 |
+| **XLSX / XLS** | pandas + xlrd | pipe table | 全工作表 |
+| **CSV** | pandas | pipe table | 自動偵測編碼 |
 | **PPTX** | python-pptx | pipe table | 投影片+備忘錄 |
-| **PPT** | macOS textutil | — | 純文字，macOS only |
-| **DOC** | macOS textutil | — | 純文字，macOS only |
+| **PPT** | macOS textutil / LibreOffice | — | macOS 內建；Windows 需 LibreOffice |
+| **DOC** | macOS textutil / LibreOffice | — | macOS 內建；Windows 需 LibreOffice |
 | **DXF** | ezdxf | — | 工程圖文字、尺寸 |
 | **TXT / MD** | stdlib | — | Big5/CP950/UTF-16 |
 
