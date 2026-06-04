@@ -108,10 +108,13 @@ def reveal_in_file_manager(path: str) -> None:
     if SYSTEM == "Darwin":
         subprocess.run(["/usr/bin/open", "-R", path], check=False)
     elif SYSTEM == "Windows":
-        # P2+P3: quote the path so spaces work; use %SystemRoot% for the
-        # explorer executable so it doesn't rely on PATH ordering.
+        # Use %SystemRoot% so we don't rely on PATH ordering (P3).
+        # Pass a string (not a list) so subprocess bypasses list2cmdline's
+        # double-quoting, letting CreateProcess receive the exact format
+        # Explorer expects: "explorer.exe" /select,"path with spaces" (P2).
         system_root = os.environ.get("SystemRoot", r"C:\Windows")
         explorer = str(Path(system_root) / "explorer.exe")
-        subprocess.run([explorer, f'/select,"{path}"'], check=False)
+        cmd = f'"{explorer}" /select,"{path}"'
+        subprocess.run(cmd, shell=False, check=False)
     else:
         subprocess.run(["xdg-open", str(Path(path).parent)], check=False)

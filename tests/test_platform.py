@@ -121,7 +121,8 @@ class TestRevealDarwin:
 
 class TestRevealWindows:
     def test_uses_systemroot_explorer(self, tmp_path):
-        """Windows reveal uses %SystemRoot%\\explorer.exe with quoted path."""
+        """Windows reveal passes a string command directly to CreateProcess
+        (shell=False + str avoids list2cmdline double-quoting)."""
         import os
         from parsers import _platform
 
@@ -132,13 +133,14 @@ class TestRevealWindows:
              patch.dict(os.environ, {"SystemRoot": r"C:\Windows"}):
             _platform.reveal_in_file_manager(p)
 
-        args = mock_run.call_args[0][0]
-        import os
-        assert args[0] == os.path.join(r"C:\Windows", "explorer.exe")
-        assert args[1] == f'/select,"{p}"'
+        # subprocess.run receives a single string, not a list
+        cmd = mock_run.call_args[0][0]
+        assert isinstance(cmd, str)
+        assert os.path.join(r"C:\Windows", "explorer.exe") in cmd
+        assert f'/select,"{p}"' in cmd
 
     def test_path_with_spaces_quoted(self, tmp_path):
-        """Paths with spaces are correctly quoted in the explorer argument."""
+        """Path with spaces is wrapped in quotes inside /select, argument."""
         import os
         from parsers import _platform
 
@@ -149,7 +151,8 @@ class TestRevealWindows:
              patch.dict(os.environ, {"SystemRoot": r"C:\Windows"}):
             _platform.reveal_in_file_manager(p)
 
-        args = mock_run.call_args[0][0]
-        # The path argument must be wrapped in double-quotes
-        assert args[1].startswith('/select,"')
-        assert args[1].endswith('"')
+        cmd = mock_run.call_args[0][0]
+        # Command is a string; path with spaces must be inside double-quotes
+        assert isinstance(cmd, str)
+        assert '/select,"' in cmd
+        assert cmd.endswith('"')
