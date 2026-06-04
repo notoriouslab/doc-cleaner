@@ -80,16 +80,18 @@ def parse(filepath):
     except Exception as e:
         logger.warning(f"python-docx failed: {e}, trying textutil fallback")
 
-    # Fallback: textutil (macOS only, loses table structure)
-    from parsers._textutil import convert_to_text
-    return convert_to_text(filepath, format_label="DOCX")
+    # Fallback: platform-specific legacy converter
+    from parsers._platform import convert_legacy_office
+    return convert_legacy_office(filepath, format_label="DOCX")
 
 
 def parse_doc(filepath):
     """
-    Parse legacy .doc file via macOS textutil.
+    Parse legacy .doc file via platform-specific converter.
 
-    Returns extracted plain text, or empty string on failure / non-macOS.
+    macOS: /usr/bin/textutil (system built-in)
+    Windows/Linux: LibreOffice headless (if installed)
+    Returns extracted plain text, or empty string on failure.
     """
-    from parsers._textutil import convert_to_text
-    return convert_to_text(filepath, format_label="DOC")
+    from parsers._platform import convert_legacy_office
+    return convert_legacy_office(filepath, format_label="DOC")

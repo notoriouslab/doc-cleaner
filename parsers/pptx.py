@@ -103,10 +103,10 @@ def _parse_pptx(filepath):
     return "\n\n".join(parts)
 
 
-def _parse_ppt_textutil(filepath):
-    """Parse legacy .ppt file via macOS textutil."""
-    from parsers._textutil import convert_to_text
-    return convert_to_text(filepath, format_label="PPT")
+def _parse_ppt_legacy(filepath):
+    """Parse legacy .ppt via platform-specific converter."""
+    from parsers._platform import convert_legacy_office
+    return convert_legacy_office(filepath, format_label="PPT")
 
 
 def parse(filepath):
@@ -121,7 +121,7 @@ def parse(filepath):
     if ext == ".pptx":
         return _parse_pptx(filepath)
     elif ext == ".ppt":
-        return _parse_ppt_textutil(filepath)
+        return _parse_ppt_legacy(filepath)
     else:
         logger.warning(f"Unsupported presentation format: {ext}")
         return ""

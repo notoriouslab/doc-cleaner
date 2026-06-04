@@ -308,13 +308,9 @@ class Api:
         return paths
 
     def reveal_in_finder(self, path):
-        """Reveal file in macOS Finder with open -R.
-        Rejects non-absolute paths and URL schemes as a defence-in-depth measure."""
-        if not isinstance(path, str) or not Path(path).is_absolute():
-            return
-        if "://" in path:
-            return
-        subprocess.run(["/usr/bin/open", "-R", path], check=False)
+        """Reveal file in platform file manager. Delegates to parsers._platform."""
+        from parsers._platform import reveal_in_file_manager
+        reveal_in_file_manager(path)
 
 
 def main():
