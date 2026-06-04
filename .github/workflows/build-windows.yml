@@ -29,7 +29,9 @@ jobs:
         run: pip install briefcase==0.4.2 pytest
 
       - name: Install runtime dependencies for tests
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install ezdxf "python-pptx>=0.6.21,<1.0.0"
 
       - name: Run unit tests (skip webview/GUI tests)
         run: |

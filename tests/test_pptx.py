@@ -2,7 +2,9 @@
 import os
 import tempfile
 import pytest
-from pptx import Presentation
+
+pptx = pytest.importorskip("pptx", reason="python-pptx not installed")
+Presentation = pptx.Presentation
 from pptx.util import Inches
 
 from parsers.pptx import parse

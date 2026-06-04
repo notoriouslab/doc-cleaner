@@ -2,7 +2,8 @@
 import os
 import tempfile
 import pytest
-import ezdxf
+
+ezdxf = pytest.importorskip("ezdxf", reason="ezdxf not installed")
 
 from parsers.dxf import parse
 
