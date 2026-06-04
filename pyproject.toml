@@ -55,3 +55,8 @@ requires = [
 
 [tool.briefcase.app.macapp.macOS]
 requires = []
+
+[tool.briefcase.app.macapp.windows]
+requires = []
+# numpy: pin to a version with win_amd64 wheels for Python 3.12
+# (pandas==2.2.3 is already pinned in the app-level requires above)

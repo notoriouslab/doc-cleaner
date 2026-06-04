@@ -1,0 +1,59 @@
+name: Build Windows MSI
+
+# Trigger on version tags (e.g. v1.3.0) or manually
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          # Use 3.12 — matches Briefcase's bundled Python on Windows
+          # (Windows Briefcase support for 3.13 is newer; 3.12 is safer)
+          python-version: '3.12'
+
+      - name: Install dev dependencies
+        run: pip install briefcase==0.4.2 pytest
+
+      - name: Install runtime dependencies for tests
+        run: pip install -r requirements.txt
+
+      - name: Run unit tests (skip webview/GUI tests)
+        run: |
+          python -m pytest tests/ -v `
+            --ignore=tests/test_macapp.py `
+            -k "not textutil and not Darwin"
+
+      - name: Create app bundle
+        run: briefcase create windows
+
+      - name: Build app
+        run: briefcase build windows
+
+      - name: Package as MSI
+        # --adhoc-sign is macOS-only; Windows uses its own signing mechanism
+        run: briefcase package windows
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Doc-Cleaner-Windows-${{ github.ref_name }}
+          path: dist/*.msi
+          retention-days: 30
+
+      - name: Upload to GitHub Release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} dist/*.msi --clobber
