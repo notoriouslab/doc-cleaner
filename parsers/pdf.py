@@ -19,22 +19,85 @@ logger = logging.getLogger(__name__)
 # --- opendataloader-pdf (ODL) support ---
 
 _odl_available_cache = None
+_odl_system_python = None   # set when ODL is only accessible via a system Python
+
+
+def _find_system_python_with_odl():
+    """
+    Search for a system Python that has opendataloader_pdf and Java installed.
+    Used when running inside a Briefcase bundle whose isolated Python cannot
+    directly import packages installed in the system environment.
+
+    Returns the executable path of the first qualifying Python, or None.
+    """
+    # Prefer explicit paths over PATH lookup to avoid accidentally finding
+    # the bundled Python itself.
+    candidates = []
+    if sys.platform == "darwin":
+        candidates = [
+            "/usr/bin/python3",
+            "/usr/local/bin/python3",
+            "/opt/homebrew/bin/python3",
+            os.path.expanduser("~/miniforge3/bin/python3"),
+            os.path.expanduser("~/anaconda3/bin/python3"),
+            os.path.expanduser("~/.pyenv/shims/python3"),
+        ]
+    elif sys.platform == "win32":
+        # `py` is the Windows Python Launcher — separate from any bundle
+        candidates = ["py", "python"]
+    else:
+        candidates = ["/usr/bin/python3", "/usr/local/bin/python3"]
+
+    bundle_exe = os.path.realpath(sys.executable)
+
+    for candidate in candidates:
+        try:
+            # Skip if this is the bundle Python
+            if os.path.realpath(candidate) == bundle_exe:
+                continue
+            result = subprocess.run(
+                [candidate, "-c", "import opendataloader_pdf; print('ok')"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0 and result.stdout.strip() == "ok":
+                # Also verify Java is reachable (ODL calls Java internally)
+                subprocess.run(["java", "-version"], capture_output=True, timeout=5)
+                logger.debug(f"ODL accessible via system Python: {candidate}")
+                return candidate
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            continue
+    return None
 
 
 def odl_available():
     """
     Check if opendataloader-pdf and Java are both available.
+
+    Tries two paths:
+    1. Direct import (CLI / development: ODL in the same Python environment).
+    2. Subprocess via a system Python (App bundle: ODL installed outside the bundle).
+
     Result is cached for the session lifetime.
     """
-    global _odl_available_cache
+    global _odl_available_cache, _odl_system_python
     if _odl_available_cache is not None:
         return _odl_available_cache
 
+    # Path 1: direct import (fast, same environment)
     try:
         import opendataloader_pdf  # noqa: F401
         subprocess.run(["java", "-version"], capture_output=True, timeout=5)
         _odl_available_cache = True
+        return True
     except (ImportError, FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # Path 2: look for a system Python that has ODL (App bundle scenario)
+    py = _find_system_python_with_odl()
+    if py:
+        _odl_system_python = py
+        _odl_available_cache = True
+    else:
         logger.debug("ODL unavailable (missing opendataloader-pdf or Java)")
         _odl_available_cache = False
 
@@ -55,48 +118,78 @@ def clean_odl_output(text):
     return text.strip()
 
 
+def _collect_odl_output(filepath):
+    """Read and clean up the .md + _images/ side-effects ODL writes beside the input."""
+    stem = os.path.splitext(filepath)[0]
+    md_path = stem + ".md"
+
+    if not os.path.exists(md_path):
+        logger.debug(f"ODL produced no output file for {os.path.basename(filepath)}")
+        return None
+
+    with open(md_path, "r", encoding="utf-8") as f:
+        text = f.read()
+
+    try:
+        os.remove(md_path)
+    except OSError:
+        pass
+    odl_images_dir = stem + "_images"
+    if os.path.isdir(odl_images_dir):
+        shutil.rmtree(odl_images_dir, ignore_errors=True)
+
+    return clean_odl_output(text) if text.strip() else None
+
+
 def extract_text_odl(filepath):
     """
-    Extract text from a PDF using opendataloader-pdf (Fast mode).
+    Extract text from a PDF using opendataloader-pdf (high-quality, table-aware).
 
+    Tries direct import first (CLI), then subprocess via a system Python (App bundle).
     Returns Markdown string on success, None on failure.
-    ODL writes a .md file and *_images/ dir as side effects — both are cleaned up.
     """
     if not odl_available():
         return None
 
-    try:
-        from opendataloader_pdf import convert
-        convert(filepath, format="markdown")
-
-        # ODL writes output alongside the input file
-        stem = os.path.splitext(filepath)[0]
-        md_path = stem + ".md"
-
-        if not os.path.exists(md_path):
-            logger.debug(f"ODL produced no output file for {os.path.basename(filepath)}")
-            return None
-
-        with open(md_path, "r", encoding="utf-8") as f:
-            text = f.read()
-
-        # Cleanup side-effect files (.md + *_images/ dirs)
+    # --- Direct import path (CLI / same Python environment) ---
+    if _odl_system_python is None:
         try:
-            os.remove(md_path)
-        except OSError:
-            pass
-        # Only remove the exact _images/ dir ODL creates, not user dirs like _images_backup/
-        odl_images_dir = stem + "_images"
-        if os.path.isdir(odl_images_dir):
-            shutil.rmtree(odl_images_dir, ignore_errors=True)
-
-        if not text.strip():
+            from opendataloader_pdf import convert
+            convert(filepath, format="markdown")
+            return _collect_odl_output(filepath)
+        except Exception as e:
+            logger.debug(f"ODL direct extraction failed: {e}")
             return None
 
-        return clean_odl_output(text)
-
+    # --- Subprocess path (App bundle: call system Python that has ODL) ---
+    # Pass filepath via environment variable to avoid any shell-injection risk.
+    odl_script = (
+        "import os, sys\n"
+        "fp = os.environ.get('_ODL_FILE', '')\n"
+        "if not fp: sys.exit(1)\n"
+        "from opendataloader_pdf import convert\n"
+        "convert(fp, format='markdown')\n"
+    )
+    try:
+        result = subprocess.run(
+            [_odl_system_python, "-c", odl_script],
+            env={**os.environ, "_ODL_FILE": filepath},
+            capture_output=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            logger.debug(
+                f"ODL subprocess failed: {result.stderr.decode(errors='replace')[:200]}"
+            )
+            return None
+        return _collect_odl_output(filepath)
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            f"ODL subprocess timed out for {os.path.basename(filepath)}"
+        )
+        return None
     except Exception as e:
-        logger.debug(f"ODL extraction failed for {os.path.basename(filepath)}: {e}")
+        logger.debug(f"ODL subprocess extraction failed: {e}")
         return None
 
 try:
