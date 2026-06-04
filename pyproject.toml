@@ -4,6 +4,7 @@ bundle = "com.notoriouslab"
 version = "1.3.0"
 url = "https://github.com/notoriouslab/doc-cleaner"
 license = "MIT"
+license-files = ["LICENSE"]
 author = "notoriouslab"
 author_email = "sitedirector@gmail.com"
 
