@@ -10,6 +10,9 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+permissions:
+  contents: write   # required to upload assets to GitHub Releases
+
 jobs:
   build:
     runs-on: windows-latest
