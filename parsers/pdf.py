@@ -10,6 +10,7 @@ Supports:
 """
 import os
 import re
+import sys
 import shutil
 import logging
 import subprocess
