@@ -255,6 +255,14 @@ def parse_file(filepath, config):
         # Classify (ODL text informs the decision if available)
         pdf_type, raw_text, metadata = classify(target, odl_text=odl_text)
 
+        # For NATIVE PDFs without ODL: re-extract with table detection so
+        # tables are preserved as Markdown pipe tables instead of being
+        # flattened to plain text by page.get_text().
+        if pdf_type == PdfType.NATIVE and odl_text is None:
+            table_text = pdf.extract_text_with_tables(target)
+            if table_text:
+                raw_text = table_text
+
         cutoff_patterns = config.get("ad_truncation_patterns")
         strip_patterns = config.get("ad_strip_patterns")
         strip_urls = config.get("strip_urls", True)

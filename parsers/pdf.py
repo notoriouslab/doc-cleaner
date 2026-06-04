@@ -202,6 +202,69 @@ def extract_images(filepath, dpi=200, max_pages=15):
         return []
 
 
+def extract_text_with_tables(filepath):
+    """
+    Extract PDF text with table detection, preserving table structure as Markdown.
+
+    Uses PyMuPDF find_tables() to locate tables on each page, converts them to
+    Markdown pipe tables via Table.to_markdown(), and interleaves them with the
+    surrounding text sorted by vertical position.
+
+    Falls back to plain page.get_text() on any error.
+    """
+    if not fitz:
+        return None
+    try:
+        parts_all_pages = []
+        with fitz.open(filepath) as doc:
+            for page in doc:
+                parts_all_pages.append(_extract_page_text_with_tables(page))
+        result = "\n\n".join(p for p in parts_all_pages if p)
+        return result or None
+    except Exception as e:
+        logger.debug(f"Table-aware extraction failed, falling back to plain text: {e}")
+        return None
+
+
+def _extract_page_text_with_tables(page):
+    """Extract one page's text, converting detected tables to Markdown."""
+    try:
+        finder = page.find_tables()
+        if not finder.tables:
+            return page.get_text().strip()
+
+        # Build table entries: (y_top, markdown_string)
+        table_entries = []
+        table_rects = []
+        for tbl in finder.tables:
+            tbl_rect = fitz.Rect(tbl.bbox)
+            table_rects.append(tbl_rect)
+            table_entries.append((tbl.bbox[1], tbl.to_markdown()))
+
+        # Get text blocks, excluding those that overlap significantly with tables
+        text_entries = []
+        for block in page.get_text("blocks"):
+            x0, y0, x1, y1, text, *_ = block
+            if not text.strip():
+                continue
+            block_rect = fitz.Rect(x0, y0, x1, y1)
+            block_area = block_rect.get_area()
+            in_table = block_area > 0 and any(
+                (block_rect & trect).get_area() / block_area > 0.3
+                for trect in table_rects
+            )
+            if not in_table:
+                text_entries.append((y0, text.strip()))
+
+        # Merge text blocks and tables sorted by vertical position
+        all_entries = text_entries + table_entries
+        all_entries.sort(key=lambda e: e[0])
+        return "\n\n".join(content for _, content in all_entries if content.strip())
+
+    except Exception:
+        return page.get_text().strip()
+
+
 def get_page_count(filepath):
     """Return the number of pages in a PDF."""
     if not fitz:
