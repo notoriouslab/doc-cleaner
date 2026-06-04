@@ -21,10 +21,17 @@ sources = [
     "output",
     "prompts",
 ]
+# proxy_tools is a pywebview dependency available only as source on PyPI.
+# Briefcase uses --only-binary :all: which blocks source installs.
+# The vendored wheel in vendor_wheels/ provides a binary-compatible wheel.
+# requirement_installer_args adds --find-links so pip finds it by version pin
+# without an absolute path (Briefcase resolves relative paths automatically).
+requirement_installer_args = [
+    "--find-links=vendor_wheels",
+]
 requires = [
-    # proxy_tools: pywebview dependency, source-only on PyPI (can't install with
-    # --only-binary :all:). Vendored wheel in vendor_wheels/ solves this.
-    "proxy_tools @ file:///Users/jacobmei/Projects/notoriouslab/doc-cleaner/vendor_wheels/proxy_tools-0.1.0-py3-none-any.whl",
+    # Vendored wheel — sourced from: pip wheel proxy_tools --no-deps -w vendor_wheels/
+    "proxy_tools==0.1.0",
     # GUI
     "pywebview==6.2.1",
     # PDF / document parsing
@@ -35,8 +42,8 @@ requires = [
     "numpy>=2.4,<3",
     "openpyxl>=3.0.0",
     "xlrd>=2.0.1",
-    # Presentation
-    "python-pptx>=0.6.21",
+    # Presentation — pin to 0.6.x; 1.0.x has API breaking changes vs 0.6.x
+    "python-pptx>=0.6.21,<1.0.0",
     # DXF engineering drawings
     "ezdxf>=1.0.0",
     # Image support (PDF vision mode, not bundled in GUI but pulled by PyMuPDF)
