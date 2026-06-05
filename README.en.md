@@ -22,6 +22,8 @@ Part of the [notoriouslab](https://github.com/notoriouslab) open-source toolkit 
 | **Windows** | [Doc Cleaner-1.3.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.3.0/Doc.Cleaner-1.3.0.msi) | x86_64 (runs on ARM Windows too) |
 
 > **First launch on macOS:** Right-click → Open (Ventura and earlier) or System Settings → Privacy & Security → Open Anyway (Sonoma/Sequoia)
+>
+> Or run once in Terminal: `xattr -cr /Applications/Doc\ Cleaner.app`
 
 </div>
 

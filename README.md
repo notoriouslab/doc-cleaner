@@ -22,6 +22,8 @@
 | **Windows** | [Doc Cleaner-1.3.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.3.0/Doc.Cleaner-1.3.0.msi) | x86_64（含 ARM Windows） |
 
 > 首次開啟 macOS 版：右鍵 → 開啟（Ventura 以前）或系統設定 → 隱私權與安全性 → 仍要開啟（Sonoma/Sequoia）
+>
+> 或在 Terminal 執行一次：`xattr -cr /Applications/Doc\ Cleaner.app`
 
 </div>
 

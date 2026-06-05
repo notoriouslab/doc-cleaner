@@ -32,3 +32,4 @@ openspec/
 CLAUDE.md
 .claude-memory
 opencode.json
+openspec/.vector-search.db*

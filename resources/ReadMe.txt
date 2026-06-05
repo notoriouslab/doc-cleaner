@@ -43,6 +43,10 @@ Doc Cleaner v1.3.0
   系統設定 → 隱私權與安全性 → 往下滑
   找到「Doc Cleaner」→ 點「仍要開啟」
 
+▸ 或使用 Terminal（適合熟悉指令列的使用者）
+  將 App 拖到 Applications 後，在 Terminal 執行一次：
+  xattr -cr /Applications/Doc\ Cleaner.app
+
 確認一次後，之後每次開啟都正常，不會再詢問。
 
 
