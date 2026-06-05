@@ -26,7 +26,7 @@ EXIT_PARTIAL = 1        # some files failed
 EXIT_NO_INPUT = 2       # no processable files found or config error
 
 # Supported file extensions
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt", ".md", ".pptx", ".ppt", ".dxf"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt", ".md", ".pptx", ".ppt", ".dxf", ".jsonl"}
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -333,6 +333,10 @@ def parse_file(filepath, config):
         from parsers.text import parse
         text = parse(filepath)
 
+    elif ext == ".jsonl":
+        from parsers.jsonl import parse
+        text = parse(filepath)
+
     else:
         logger.warning(f"Unsupported file type: {ext}")
 
@@ -372,6 +376,26 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False
         if not text and not images:
             logger.warning(f"  No content extracted from {filename}")
             return "no_content", None
+
+        # JSONL transcripts are pre-formatted Markdown — skip AI and write directly
+        ext = os.path.splitext(filepath)[1].lower()
+        if ext == ".jsonl":
+            # JSONL transcripts are pre-formatted Markdown — bypass AI and PII redaction intentionally.
+            # Output contains full conversation content; callers should treat the result as sensitive.
+            logger.info(f"  JSONL transcript: AI and PII redaction bypassed — output contains full conversation")
+            from output.markdown import render_raw_output
+            frontmatter = config.get("output", {}).get("frontmatter", True)
+            final_text = render_raw_output(text, filename=filename, source_path=filepath, frontmatter=frontmatter)
+            try:
+                fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(final_text)
+                os.replace(tmp_path, output_path)
+            except OSError as e:
+                logger.error(f"  Write error for {filename}: {e}")
+                return "write_error", None
+            logger.info(f"  → {output_path}")
+            return "ok", output_path
 
         # PII redaction (opt-in via config)
         pii_config = config.get("pii", {})
