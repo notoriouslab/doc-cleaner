@@ -1,4 +1,4 @@
-Doc Cleaner v1.3.0
+Doc Cleaner v1.4.0
 ==================
 
 文件清洗工具——將各種文件轉換為 Markdown 格式。
@@ -28,6 +28,8 @@ Doc Cleaner v1.3.0
 • PPT      — 舊版 PowerPoint（透過 macOS 系統內建工具轉換，無需安裝）
 • DXF      — AutoCAD 工程圖，提取文字標註與尺寸
 • TXT / MD — 純文字直接輸出
+• JSONL    — Claude Code session transcript，對話紀錄轉結構化 Markdown
+             （此格式為 Claude Code 專用，不適用於一般 JSONL 檔案）
 
 
 【首次開啟 App】

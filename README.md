@@ -5,7 +5,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-green.svg)](https://www.python.org/)
-[![Supported Formats](https://img.shields.io/badge/Formats-11-orange.svg)](#支援格式完整表)
+[![Supported Formats](https://img.shields.io/badge/Formats-12-orange.svg)](#支援格式完整表)
 [![Last Commit](https://img.shields.io/github/last-commit/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner)
 
 **結構化文件轉 Markdown —— 支援 PDF、DOCX、XLSX、PPTX、PPT、DOC、DXF、純文字。中文友好、表格保留、隱私優先。**
@@ -18,8 +18,8 @@
 
 | 平台 | 下載 | 架構 |
 |------|------|------|
-| **macOS** | [Doc Cleaner-1.3.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.3.0/Doc.Cleaner-1.3.0.dmg) | Universal（Intel + Apple Silicon） |
-| **Windows** | [Doc Cleaner-1.3.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.3.0/Doc.Cleaner-1.3.0.msi) | x86_64（含 ARM Windows） |
+| **macOS** | [Doc Cleaner-1.4.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.4.0/Doc.Cleaner-1.4.0.dmg) | Universal（Intel + Apple Silicon） |
+| **Windows** | [Doc Cleaner-1.4.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.4.0/Doc.Cleaner-1.4.0.msi) | x86_64（含 ARM Windows） |
 
 > 首次開啟 macOS 版：右鍵 → 開啟（Ventura 以前）或系統設定 → 隱私權與安全性 → 仍要開啟（Sonoma/Sequoia）
 >
@@ -294,6 +294,7 @@ doc-cleaner 內建 2 個提示詞範本：
 | **DOC** | macOS textutil / LibreOffice | — | macOS 內建；Windows 需 LibreOffice |
 | **DXF** | ezdxf | — | 工程圖文字、尺寸 |
 | **TXT / MD** | stdlib | — | Big5/CP950/UTF-16 |
+| **JSONL** | 內建 | — | Claude Code session transcript → Markdown |
 
 ---
 

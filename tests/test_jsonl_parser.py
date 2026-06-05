@@ -70,9 +70,14 @@ def test_tool_summary_command():
     assert _tool_summary(block) == "🔧 Bash: git status"
 
 
-def test_tool_summary_prompt():
-    block = {"name": "WebFetch", "input": {"prompt": "summarise this page", "url": "http://x"}}
-    assert _tool_summary(block) == "🔧 WebFetch: summarise this page"
+def test_tool_summary_url_priority_over_prompt():
+    block = {"name": "WebFetch", "input": {"url": "https://example.com", "prompt": "summarise this page"}}
+    assert _tool_summary(block) == "🔧 WebFetch: https://example.com"
+
+
+def test_tool_summary_prompt_when_no_url():
+    block = {"name": "Agent", "input": {"prompt": "run the tests"}}
+    assert _tool_summary(block) == "🔧 Agent: run the tests"
 
 
 def test_tool_summary_fallback_first_string_value():
@@ -147,10 +152,9 @@ def test_parse_user_content_list_text_only():
         assert "hello world" in result
 
 
-def test_parse_user_content_list_ignores_non_text():
+def test_parse_user_content_list_ignores_image():
     content = [
         {"type": "image", "source": {"type": "base64", "data": "abc"}},
-        {"type": "tool_result", "content": "some result"},
         {"type": "text", "text": "visible text"},
     ]
     with tempfile.TemporaryDirectory() as tmp:
@@ -158,7 +162,61 @@ def test_parse_user_content_list_ignores_non_text():
         result = parse(path)
         assert "visible text" in result
         assert "base64" not in result
-        assert "some result" not in result
+
+
+# ---------------------------------------------------------------------------
+# parse() — tool_result rendering
+# ---------------------------------------------------------------------------
+
+def test_parse_user_tool_result_string_content():
+    content = [{"type": "tool_result", "tool_use_id": "t1", "content": "3 files changed"}]
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _write_jsonl([_make_user(content)], tmp)
+        result = parse(path)
+        assert "<details>" in result
+        assert "tool_result" in result
+        assert "3 files changed" in result
+
+
+def test_parse_user_tool_result_list_content():
+    content = [
+        {
+            "type": "tool_result",
+            "tool_use_id": "t1",
+            "content": [{"type": "text", "text": "stdout output"}],
+        }
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _write_jsonl([_make_user(content)], tmp)
+        result = parse(path)
+        assert "stdout output" in result
+        assert "<details>" in result
+
+
+def test_parse_user_tool_result_empty_omitted():
+    content = [
+        {"type": "tool_result", "tool_use_id": "t1", "content": ""},
+        {"type": "text", "text": "still here"},
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _write_jsonl([_make_user(content)], tmp)
+        result = parse(path)
+        assert "<details>" not in result
+        assert "still here" in result
+
+
+def test_parse_user_tool_result_uses_tool_name():
+    """tool_result label uses the name from the paired tool_use block."""
+    assistant_msg = _make_assistant(
+        [{"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "ls"}}]
+    )
+    user_msg = _make_user(
+        [{"type": "tool_result", "tool_use_id": "t1", "content": "file.txt"}]
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _write_jsonl([assistant_msg, user_msg], tmp)
+        result = parse(path)
+        assert "tool_result (Bash)" in result
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +289,20 @@ def test_parse_assistant_thinking_block_null_value():
         result = parse(path)
         assert "<details>" not in result
         assert "Still works." in result
+
+
+def test_parse_assistant_block_order_preserved():
+    """thinking before text must render before text, not after."""
+    blocks = [
+        {"type": "thinking", "thinking": "Let me think."},
+        {"type": "text", "text": "Here is my answer."},
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _write_jsonl([_make_assistant(blocks)], tmp)
+        result = parse(path)
+        thinking_pos = result.index("<details>")
+        answer_pos = result.index("Here is my answer.")
+        assert thinking_pos < answer_pos
 
 
 # ---------------------------------------------------------------------------

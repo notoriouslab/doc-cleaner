@@ -2,7 +2,8 @@
 Claude Code session transcript parser (.jsonl).
 
 Converts Claude Code JSONL transcript files to structured Markdown.
-Handles text, tool_use (summary), and thinking (collapsible) blocks.
+Handles text, tool_use (summary), thinking (collapsible), and tool_result
+(collapsible) blocks.
 """
 import json
 import logging
@@ -45,6 +46,8 @@ def _tool_summary(block):
         return f"🔧 {name}: {_truncate(inp['file_path'])}"
     if "command" in inp:
         return f"🔧 {name}: {_truncate(inp['command'])}"
+    if "url" in inp:
+        return f"🔧 {name}: {_truncate(inp['url'])}"
     if "prompt" in inp:
         return f"🔧 {name}: {_truncate(inp['prompt'])}"
 
@@ -56,18 +59,52 @@ def _tool_summary(block):
     return f"🔧 {name}"
 
 
-def _render_user(msg, ts):
+def _tool_result_body(block):
+    """Extract text from a tool_result block. Returns '' if empty."""
+    result_content = block.get("content", "")
+    if isinstance(result_content, str):
+        return result_content.strip()
+    if isinstance(result_content, list):
+        parts = [
+            rc.get("text", "").strip()
+            for rc in result_content
+            if rc.get("type") == "text"
+        ]
+        return "\n".join(p for p in parts if p)
+    return ""
+
+
+def _render_user(msg, ts, tool_name_map=None):
+    if tool_name_map is None:
+        tool_name_map = {}
+
     content = msg.get("content", "")
+    header = f"**User** · {ts}" if ts else "**User**"
+
     if isinstance(content, str):
         body = content.strip()
-    elif isinstance(content, list):
-        parts = [c.get("text", "").strip() for c in content if c.get("type") == "text"]
-        body = "\n\n".join(p for p in parts if p)
-    else:
-        body = ""
+        return f"{header}\n\n{body}" if body else header
 
-    header = f"**User** · {ts}" if ts else "**User**"
-    return f"{header}\n{body}" if body else header
+    if not isinstance(content, list):
+        return header
+
+    parts = [header]
+    for c in content:
+        ctype = c.get("type")
+        if ctype == "text":
+            t = c.get("text", "").strip()
+            if t:
+                parts.append(t)
+        elif ctype == "tool_result":
+            tool_id = c.get("tool_use_id", "")
+            tool_name = tool_name_map.get(tool_id, "tool")
+            body = _tool_result_body(c)
+            if body:
+                parts.append(
+                    f"<details><summary>tool_result ({tool_name})</summary>\n\n{body}\n\n</details>"
+                )
+
+    return "\n\n".join(parts)
 
 
 def _render_assistant(msg, ts):
@@ -75,43 +112,42 @@ def _render_assistant(msg, ts):
     if not isinstance(content, list):
         content = []
 
-    text_parts = []
-    tool_lines = []
-    thinking_blocks = []
+    header = f"**Assistant** · {ts}" if ts else "**Assistant**"
+    parts = [header]
 
     for block in content:
         btype = block.get("type")
         if btype == "text":
             t = block.get("text", "").strip()
             if t:
-                text_parts.append(t)
+                parts.append(t)
         elif btype == "tool_use":
-            tool_lines.append(_tool_summary(block))
+            parts.append(_tool_summary(block))
         elif btype == "thinking":
-            t = (block.get("thinking") or "").strip()  # guard against JSON null
+            t = (block.get("thinking") or "").strip()
             if t:
-                thinking_blocks.append(t)
+                parts.append(
+                    f"<details><summary>thinking</summary>\n\n{t}\n\n</details>"
+                )
 
-    header = f"**Assistant** · {ts}" if ts else "**Assistant**"
-    parts = [header]
-
-    if text_parts:
-        parts.append("\n\n".join(text_parts))
-
-    for line in tool_lines:
-        parts.append(line)
-
-    for thinking in thinking_blocks:
-        parts.append(
-            f"<details><summary>thinking</summary>\n\n{thinking}\n\n</details>"
-        )
-
-    return "\n".join(parts)
+    return "\n\n".join(parts)
 
 
 def _render_session(session_id, messages):
     """Render one session's messages as a Markdown section."""
     short_id = session_id[:8] if session_id else "unknown"
+
+    # Build tool_use_id -> name map for tool_result labelling
+    tool_name_map = {}
+    for entry in messages:
+        if entry.get("type") == "assistant":
+            msg_content = entry.get("message", {}).get("content", [])
+            if isinstance(msg_content, list):
+                for block in msg_content:
+                    if block.get("type") == "tool_use":
+                        bid = block.get("id", "")
+                        if bid:
+                            tool_name_map[bid] = block.get("name", "tool")
 
     # Date from first message timestamp
     first_ts = next((m.get("timestamp", "") for m in messages), "")
@@ -135,7 +171,7 @@ def _render_session(session_id, messages):
         role = entry.get("type")
 
         if role == "user":
-            rendered.append(_render_user(msg, ts))
+            rendered.append(_render_user(msg, ts, tool_name_map))
         elif role == "assistant":
             rendered.append(_render_assistant(msg, ts))
 
@@ -148,9 +184,8 @@ def parse(filepath):
     Parse a Claude Code JSONL transcript file into structured Markdown.
 
     Groups messages by sessionId, renders user/assistant turns with
-    tool summaries and collapsible thinking blocks.
+    tool summaries, collapsible thinking blocks, and collapsible tool results.
     """
-    # Ordered session tracking
     session_order = []
     sessions = defaultdict(list)
 

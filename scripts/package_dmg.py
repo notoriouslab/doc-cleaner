@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 APP = ROOT / "build/macapp/macos/app/Doc Cleaner.app"
 README = ROOT / "resources/ReadMe.txt"
-OUT = ROOT / "dist/Doc Cleaner-1.3.0.dmg"
+OUT = ROOT / "dist/Doc Cleaner-1.4.0.dmg"
 
 if not APP.exists():
     sys.exit(f"ERROR: .app not found at {APP}\nRun: briefcase build macOS --adhoc-sign")

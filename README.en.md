@@ -5,7 +5,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-green.svg)](https://www.python.org/)
-[![Supported Formats](https://img.shields.io/badge/Formats-11-orange.svg)](#supported-formats-reference)
+[![Supported Formats](https://img.shields.io/badge/Formats-12-orange.svg)](#supported-formats-reference)
 [![Last Commit](https://img.shields.io/github/last-commit/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner)
 
 **Structured document-to-Markdown conversion — supports PDF, DOCX, XLSX, PPTX, PPT, DOC, DXF, and plain text. CJK-first, table preservation, privacy-first.**
@@ -18,8 +18,8 @@ Part of the [notoriouslab](https://github.com/notoriouslab) open-source toolkit 
 
 | Platform | Download | Architecture |
 |----------|----------|--------------|
-| **macOS** | [Doc Cleaner-1.3.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.3.0/Doc.Cleaner-1.3.0.dmg) | Universal (Intel + Apple Silicon) |
-| **Windows** | [Doc Cleaner-1.3.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.3.0/Doc.Cleaner-1.3.0.msi) | x86_64 (runs on ARM Windows too) |
+| **macOS** | [Doc Cleaner-1.4.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.4.0/Doc.Cleaner-1.4.0.dmg) | Universal (Intel + Apple Silicon) |
+| **Windows** | [Doc Cleaner-1.4.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.4.0/Doc.Cleaner-1.4.0.msi) | x86_64 (runs on ARM Windows too) |
 
 > **First launch on macOS:** Right-click → Open (Ventura and earlier) or System Settings → Privacy & Security → Open Anyway (Sonoma/Sequoia)
 >
@@ -293,6 +293,7 @@ Table reconstruction is demanding; small models struggle. If your machine has re
 | **DOC** | macOS textutil / LibreOffice | — | macOS built-in; Windows needs LibreOffice |
 | **DXF** | ezdxf | — | Engineering: annotations, dimensions |
 | **TXT / MD** | stdlib | — | Big5/CP950/UTF-16 |
+| **JSONL** | built-in | — | Claude Code session transcript → Markdown |
 
 ---
 

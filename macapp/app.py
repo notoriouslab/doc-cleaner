@@ -14,7 +14,7 @@ import webview
 import core as _core
 
 SUPPORTED_TYPES = (
-    "支援格式 (*.pdf;*.docx;*.xlsx;*.xls;*.csv;*.txt;*.md;*.pptx;*.dxf;*.doc;*.ppt)",
+    "支援格式 (*.pdf;*.docx;*.xlsx;*.xls;*.csv;*.txt;*.md;*.pptx;*.dxf;*.doc;*.ppt;*.jsonl)",
     "All files (*.*)",
 )
 
