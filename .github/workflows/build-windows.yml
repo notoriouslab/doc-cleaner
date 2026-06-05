@@ -60,8 +60,9 @@ jobs:
           retention-days: 30
 
       - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload v1.3.0 dist/*.msi --clobber --repo notoriouslab/doc-cleaner
+          gh release create ${{ github.ref_name }} --title "${{ github.ref_name }}" --generate-notes --repo notoriouslab/doc-cleaner || true
+          gh release upload ${{ github.ref_name }} dist/*.msi --clobber --repo notoriouslab/doc-cleaner
