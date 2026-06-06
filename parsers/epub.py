@@ -236,7 +236,10 @@ def _xhtml_to_text(xhtml_bytes):
     # the body), else <title>
     heading = ""
     heading_el = None
-    for tag in ("h1", "h2"):
+    # any heading level (h1-h6): some books title chapters with h3 etc. and put
+    # the (repeated) book name in <title>, so prefer a real heading element over
+    # the <title> fallback to avoid every chapter sharing the book-name heading
+    for tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
         for el in doc.xpath(f"//*[local-name()='{tag}']"):
             t = " ".join(el.text_content().replace(OBJECT_REPLACEMENT, " ").split())
             if t:

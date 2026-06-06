@@ -241,6 +241,22 @@ class TestHeadings:
         result = epub.parse(_build(tmp_path, entries=entries))
         assert "## H1 章標" in result
 
+    def test_heading_from_h3_over_booktitle(self, tmp_path):
+        """When chapters title with h3 and <title> repeats the book name, use the
+        h3 (real chapter title), not the book-name <title>."""
+        chapter = (
+            f'<html xmlns="{XHTML_NS}"><head><title>每日得力一分鐘</title></head>'
+            f"<body><h3>一月一日</h3><p>當日經文與默想</p></body></html>"
+        )
+        entries = {
+            "META-INF/container.xml": _container(),
+            "OEBPS/content.opf": _opf([("c1", "ch1.xhtml")], [("c1", True)]),
+            "OEBPS/ch1.xhtml": chapter,
+        }
+        result = epub.parse(_build(tmp_path, entries=entries))
+        assert "## 一月一日" in result
+        assert "## 每日得力一分鐘" not in result
+
     def test_heading_falls_back_to_title(self, tmp_path):
         entries = {
             "META-INF/container.xml": _container(),
