@@ -5,10 +5,10 @@
 [![GitHub release](https://img.shields.io/github/v/release/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-green.svg)](https://www.python.org/)
-[![Supported Formats](https://img.shields.io/badge/Formats-12-orange.svg)](#支援格式完整表)
+[![Supported Formats](https://img.shields.io/badge/Formats-16-orange.svg)](#支援格式完整表)
 [![Last Commit](https://img.shields.io/github/last-commit/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner)
 
-**結構化文件轉 Markdown —— 支援 PDF、DOCX、XLSX、PPTX、PPT、DOC、DXF、純文字。中文友好、表格保留、隱私優先。**
+**日常文件轉 Markdown —— 涵蓋 PDF、Office、Apple Keynote／Numbers、EPUB 電子書等 16 種格式。中文友好、表格保留、隱私優先、全程本地。**
 
 屬於 [notoriouslab](https://github.com/notoriouslab) 開源工具組的一員 · 需要 Python 3.9+
 
@@ -31,22 +31,25 @@
 
 ## 核心定位
 
-市面上大多文件轉 Markdown 工具不是丟掉表格，就是搞壞中文字元，或得把機密文件上傳到雲端。**doc-cleaner 從第一天就為繁體中文設計**，並保留表格完整。
+doc-cleaner 專注**日常文件抽取**——把你每天遇到的文件轉成乾淨、可讀的 Markdown：PDF、Word、Excel、PowerPoint、**Apple Keynote／Numbers**、**EPUB 電子書**，中文無損、表格完整、全程本地不上雲。
+
+能同時做到**中文友好 + 表格保留**，又涵蓋 **Apple Keynote／Numbers 與 EPUB** 的免費工具並不多——這個組合正是 doc-cleaner 的強項。
 
 **典型使用：**
 - 🖥️ **桌面 App** — 拖放文件，零設定，macOS/Windows 雙擊即用（非技術用戶首選）
-- 📊 **金融對帳單** — Big5/CP950 自動偵測，提取交易清單和數字完整無損
-- 📄 **多格式批處理** — PDF/DOCX/XLSX/PPTX 混合輸入，統一輸出 Markdown（CLI）
-- 🔒 **隱私優先** — 選用 Ollama 本地推理，文件不上雲端
+- 📊 **金融對帳單** — Big5/CP950 自動偵測，交易清單與數字完整無損
+- 🎬 **簡報／電子書** — Keynote 投影片、EPUB 章節，依閱讀順序抽成 Markdown
+- 📄 **多格式批處理** — 16 種格式混合輸入，統一輸出 Markdown（CLI）
+- 🔒 **隱私優先** — `--ai none` 純文字或 Ollama 本地推理，文件不上雲端
 - 🤖 **AI Agent 整合** — OpenClaw 等框架可直接 shell 呼叫，附帶 `SKILL.md` 支援
 
 ### 三大特色
 
 | 特色 | 做法 |
 |------|------|
-| **表格保留** | DOCX/XLSX → Markdown pipe table；PDF 表格用 PyMuPDF find_tables() 自動偵測，無需額外安裝 |
-| **多格式支援** | PDF、DOCX、XLSX、PPTX、PPT、DOC、DXF、TXT、MD —— 一個工具全搞定 |
-| **隱私 & 無 AI 模式** | `--ai none` 純文字提取（零 API key）；或用 Ollama 本地推理 |
+| **日常格式最完整** | PDF、Office、Apple Keynote／Numbers、EPUB、DXF… 16 種格式，一個工具搞定 |
+| **中文 + 表格無損** | Big5/CP950/UTF-16 自動偵測；DOCX/XLSX/PDF 表格 → Markdown pipe table，數字完整 |
+| **隱私 & 無 AI 模式** | `--ai none` 純文字提取（零 API key、零雲端）；或用 Ollama 本地推理 |
 
 ---
 
@@ -295,6 +298,10 @@ doc-cleaner 內建 2 個提示詞範本：
 | **DXF** | ezdxf | — | 工程圖文字、尺寸 |
 | **TXT / MD** | stdlib | — | Big5/CP950/UTF-16 |
 | **JSONL** | 內建 | — | Claude Code session transcript → Markdown |
+| **NUMBERS** | numbers-parser | pipe table | Apple 試算表，每表格分節 |
+| **KEY** | keynote-parser | — | Apple Keynote，每投影片分節（IWA 解析） |
+| **PAGES** | QuickLook PDF | — | Apple Pages；新版需在 Pages 匯出 PDF 後再轉 |
+| **EPUB** | 內建（lxml） | — | 電子書，依章節分節，含書名／作者 |
 
 ---
 
@@ -352,4 +359,24 @@ gmail-statement-fetcher  →  Gmail 自動下載 PDF 對帳單
 
 ## 授權
 
-MIT
+本專案程式碼採 **MIT** 授權。
+
+### 引用的開源套件
+
+doc-cleaner 建立在這些套件之上，誠實列出與其授權：
+
+| 套件 | 用途 | 授權 |
+|------|------|------|
+| PyMuPDF | PDF 解析、表格偵測 | **AGPL-3.0／商業雙授權** |
+| python-docx | DOCX | MIT |
+| pandas · openpyxl · xlrd | XLSX／XLS／CSV | BSD／MIT |
+| python-pptx | PPTX | MIT |
+| ezdxf | DXF | MIT |
+| numbers-parser | Apple Numbers | MIT |
+| keynote-parser | Apple Keynote | MIT |
+| lxml | EPUB／XML 解析 | BSD |
+| Pillow | 影像處理 | HPND |
+| pywebview | 桌面 GUI | BSD |
+| tabulate | Markdown 表格輸出 | MIT |
+
+> PyMuPDF 採 AGPL-3.0／商業雙授權；本專案原始碼公開於 GitHub，分發時符合 AGPL 的原始碼公開要求。

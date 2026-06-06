@@ -5,10 +5,10 @@
 [![GitHub release](https://img.shields.io/github/v/release/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-green.svg)](https://www.python.org/)
-[![Supported Formats](https://img.shields.io/badge/Formats-12-orange.svg)](#supported-formats-reference)
+[![Supported Formats](https://img.shields.io/badge/Formats-16-orange.svg)](#supported-formats-reference)
 [![Last Commit](https://img.shields.io/github/last-commit/notoriouslab/doc-cleaner)](https://github.com/notoriouslab/doc-cleaner)
 
-**Structured document-to-Markdown conversion — supports PDF, DOCX, XLSX, PPTX, PPT, DOC, DXF, and plain text. CJK-first, table preservation, privacy-first.**
+**Everyday document-to-Markdown conversion — 16 formats spanning PDF, Office, Apple Keynote/Numbers, and EPUB e-books. CJK-friendly, table preservation, privacy-first, fully local.**
 
 Part of the [notoriouslab](https://github.com/notoriouslab) open-source toolkit · Requires Python 3.9+
 
@@ -31,22 +31,25 @@ Part of the [notoriouslab](https://github.com/notoriouslab) open-source toolkit 
 
 ## Core Positioning
 
-Most document-to-Markdown tools either drop tables, mangle CJK text, or require cloud uploads. **doc-cleaner was built for Traditional Chinese from day one**, and preserves tables completely.
+doc-cleaner focuses on **everyday document extraction** — turning the files you meet daily into clean, readable Markdown: PDF, Word, Excel, PowerPoint, **Apple Keynote/Numbers**, and **EPUB e-books**, with CJK text intact, tables preserved, and everything processed locally.
+
+Few free tools combine **CJK-friendly + table preservation** with coverage of **Apple Keynote/Numbers and EPUB** — that combination is doc-cleaner's strength.
 
 **Typical use cases:**
 - 🖥️ **Desktop App** — Drag-and-drop files, zero config, double-click on macOS/Windows (non-technical users)
-- 📊 **Financial statements** — Big5/CP950 auto-detected, transactions and numbers extracted perfectly
-- 📄 **Batch multi-format** — Mix PDF/DOCX/XLSX/PPTX inputs, unified Markdown output (CLI)
-- 🔒 **Privacy-first** — Optional local Ollama, documents never leave your machine
+- 📊 **Financial statements** — Big5/CP950 auto-detected, transactions and numbers extracted intact
+- 🎬 **Slides / e-books** — Keynote slides and EPUB chapters extracted to Markdown in reading order
+- 📄 **Batch multi-format** — Mix 16 formats as input, unified Markdown output (CLI)
+- 🔒 **Privacy-first** — `--ai none` plain text or local Ollama; documents never leave your machine
 - 🤖 **AI agent integration** — OpenClaw and similar frameworks can shell-call it with `SKILL.md` support
 
 ### Three Core Strengths
 
 | Feature | Implementation |
 |---------|-----------------|
-| **Table preservation** | DOCX/XLSX → Markdown pipe tables; PDF tables detected via PyMuPDF find_tables(), no extra install needed |
-| **Multi-format support** | PDF, DOCX, XLSX, PPTX, PPT, DOC, DXF, TXT, MD — one tool handles all |
-| **Privacy & no-AI mode** | `--ai none` for zero API keys; or use local Ollama for on-device inference |
+| **Most complete everyday formats** | PDF, Office, Apple Keynote/Numbers, EPUB, DXF… 16 formats, one tool |
+| **CJK + tables intact** | Big5/CP950/UTF-16 auto-detect; DOCX/XLSX/PDF tables → Markdown pipe tables, numbers preserved |
+| **Privacy & no-AI mode** | `--ai none` for zero API keys and zero cloud; or local Ollama inference |
 
 ---
 
@@ -294,6 +297,10 @@ Table reconstruction is demanding; small models struggle. If your machine has re
 | **DXF** | ezdxf | — | Engineering: annotations, dimensions |
 | **TXT / MD** | stdlib | — | Big5/CP950/UTF-16 |
 | **JSONL** | built-in | — | Claude Code session transcript → Markdown |
+| **NUMBERS** | numbers-parser | pipe tables | Apple spreadsheet, one section per table |
+| **KEY** | keynote-parser | — | Apple Keynote, one section per slide (IWA) |
+| **PAGES** | QuickLook PDF | — | Apple Pages; modern files need Export → PDF first |
+| **EPUB** | built-in (lxml) | — | E-book, one section per chapter, with title/author |
 
 ---
 
@@ -347,4 +354,24 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT
+This project's code is licensed under **MIT**.
+
+### Bundled open-source libraries
+
+doc-cleaner stands on these libraries; listed honestly with their licenses:
+
+| Library | Role | License |
+|---------|------|---------|
+| PyMuPDF | PDF parsing & table detection | **AGPL-3.0 / commercial dual license** |
+| python-docx | DOCX | MIT |
+| pandas · openpyxl · xlrd | XLSX / XLS / CSV | BSD / MIT |
+| python-pptx | PPTX | MIT |
+| ezdxf | DXF | MIT |
+| numbers-parser | Apple Numbers | MIT |
+| keynote-parser | Apple Keynote | MIT |
+| lxml | EPUB / XML parsing | BSD |
+| Pillow | image handling | HPND |
+| pywebview | desktop GUI | BSD |
+| tabulate | Markdown table output | MIT |
+
+> PyMuPDF is dual-licensed under AGPL-3.0 / commercial; this project's source is public on GitHub, satisfying AGPL's source-availability requirement for distribution.

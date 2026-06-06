@@ -191,6 +191,7 @@ _HTML = """<!DOCTYPE html>
   <div id="about-overlay">
     <div class="about-panel" id="about-panel">
       <div class="about-app-name">Doc Cleaner</div>
+      <div class="about-desc" data-i18n="aboutDesc" style="color:#636366;font-size:13px;margin:-8px 0 16px;line-height:1.5">日常文件轉 Markdown · 中文友好 · 表格保留 · 16 種格式</div>
       <div class="about-row">
         <span class="about-row-label" data-i18n="aboutVersion">版本</span>
         <span class="about-row-value" id="about-ver">—</span>
@@ -230,6 +231,7 @@ _HTML = """<!DOCTYPE html>
         revealInFinder:'在 Finder 顯示',
         preparing:    '準備中…',
         done:         '完成',
+        aboutDesc:    '日常文件轉 Markdown · 中文友好 · 表格保留 · 16 種格式',
         aboutVersion: '版本',
         aboutLicense: '授權',
         aboutAuthor:  '作者',
@@ -249,6 +251,7 @@ _HTML = """<!DOCTYPE html>
         revealInFinder:'Show in Finder',
         preparing:    'Preparing…',
         done:         'Done',
+        aboutDesc:    'Everyday documents → Markdown · CJK-friendly · tables preserved · 16 formats',
         aboutVersion: 'Version',
         aboutLicense: 'License',
         aboutAuthor:  'Author',
