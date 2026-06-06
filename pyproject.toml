@@ -22,9 +22,10 @@ sources = [
     "output",
     "prompts",
     # bundled so the About panel can read the version at runtime (packaged apps
-    # have no pyproject on the dev path) and so the README ships inside the app
+    # have no pyproject on the dev path) and so the plain-text readme ships with
+    # the app (the GitHub README.md with badges/HTML is not used for distribution)
     "pyproject.toml",
-    "README.md",
+    "ReadMe.txt",
 ]
 # proxy_tools is a pywebview dependency available only as source on PyPI.
 # Briefcase uses --only-binary :all: which blocks source installs.
