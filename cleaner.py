@@ -7,6 +7,16 @@ CJK-friendly. Table-friendly. Privacy-first.
 Part of the notoriouslab open-source toolkit.
 """
 import os
+
+# protobuf descriptor-pool guard (D10): force the pure-Python protobuf
+# implementation before anything can import the C/upb one. numbers-parser and
+# keynote-parser vendor the same Apple .proto names and the upb pool aborts when
+# both load in one process. Set here at the CLI/GUI entry root as defense in
+# depth — parsers/numbers.py and parsers/iwork.py set it too, but those load
+# lazily, so guarding the root protects against a future eager protobuf import.
+# Idempotent; respects an explicit user override.
+os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+
 import re
 import sys
 import json
@@ -26,7 +36,7 @@ EXIT_PARTIAL = 1        # some files failed
 EXIT_NO_INPUT = 2       # no processable files found or config error
 
 # Supported file extensions
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt", ".md", ".pptx", ".ppt", ".dxf", ".jsonl", ".numbers"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt", ".md", ".pptx", ".ppt", ".dxf", ".jsonl", ".numbers", ".pages", ".key"}
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -339,6 +349,10 @@ def parse_file(filepath, config):
 
     elif ext == ".numbers":
         from parsers.numbers import parse
+        text = parse(filepath)
+
+    elif ext in (".pages", ".key"):
+        from parsers.iwork import parse
         text = parse(filepath)
 
     else:

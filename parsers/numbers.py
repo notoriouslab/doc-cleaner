@@ -6,6 +6,15 @@ Key features:
 - Per-table 8000-char truncation with note (mirrors xlsx budget)
 - Graceful ImportError and file-read error handling
 """
+import os
+
+# protobuf descriptor-pool guard (D10): numbers-parser and keynote-parser both
+# vendor the same Apple .proto names (TSP/TSK/TSS/TSDArchives). The C/upb
+# protobuf implementation aborts with "duplicate file name" when both are
+# imported in one process (e.g. a batch with .numbers and .key); the pure-Python
+# implementation tolerates it. Must be set before any protobuf import.
+os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+
 import logging
 
 logger = logging.getLogger(__name__)
