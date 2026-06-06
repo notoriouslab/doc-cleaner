@@ -18,8 +18,8 @@
 
 | 平台 | 下載 | 架構 |
 |------|------|------|
-| **macOS** | [Doc Cleaner-1.4.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.4.0/Doc.Cleaner-1.4.0.dmg) | Universal（Intel + Apple Silicon） |
-| **Windows** | [Doc Cleaner-1.4.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.4.0/Doc.Cleaner-1.4.0.msi) | x86_64（含 ARM Windows） |
+| **macOS** | [Doc Cleaner-1.5.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.5.0/Doc.Cleaner-1.5.0.dmg) | Universal（Intel + Apple Silicon） |
+| **Windows** | [Doc Cleaner-1.5.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.5.0/Doc.Cleaner-1.5.0.msi) | x86_64（含 ARM Windows） |
 
 > 首次開啟 macOS 版：右鍵 → 開啟（Ventura 以前）或系統設定 → 隱私權與安全性 → 仍要開啟（Sonoma/Sequoia）
 >

@@ -18,8 +18,8 @@ Part of the [notoriouslab](https://github.com/notoriouslab) open-source toolkit 
 
 | Platform | Download | Architecture |
 |----------|----------|--------------|
-| **macOS** | [Doc Cleaner-1.4.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.4.0/Doc.Cleaner-1.4.0.dmg) | Universal (Intel + Apple Silicon) |
-| **Windows** | [Doc Cleaner-1.4.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.4.0/Doc.Cleaner-1.4.0.msi) | x86_64 (runs on ARM Windows too) |
+| **macOS** | [Doc Cleaner-1.5.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.5.0/Doc.Cleaner-1.5.0.dmg) | Universal (Intel + Apple Silicon) |
+| **Windows** | [Doc Cleaner-1.5.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.5.0/Doc.Cleaner-1.5.0.msi) | x86_64 (runs on ARM Windows too) |
 
 > **First launch on macOS:** Right-click → Open (Ventura and earlier) or System Settings → Privacy & Security → Open Anyway (Sonoma/Sequoia)
 >
