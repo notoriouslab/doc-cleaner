@@ -51,6 +51,8 @@ requires = [
     "Pillow>=9.0.0",
     # tabulate: required by pandas.DataFrame.to_markdown() for pipe-table output
     "tabulate>=0.8.0",
+    # Apple Numbers extraction
+    "numbers-parser>=4.18.0",
     # Excluded per design D1: pdf2image, pikepdf, poppler, google-genai, ollama
 ]
 

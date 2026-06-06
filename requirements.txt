@@ -32,5 +32,8 @@ Pillow>=9.0.0
 # PowerPoint extraction (optional: pip install python-pptx)
 # python-pptx>=0.6.21
 
+# Apple Numbers extraction (optional: pip install numbers-parser)
+numbers-parser>=4.18.0
+
 # macOS GUI (optional: pip install pywebview — macOS app only)
 # pywebview>=5.0.0

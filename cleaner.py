@@ -26,7 +26,7 @@ EXIT_PARTIAL = 1        # some files failed
 EXIT_NO_INPUT = 2       # no processable files found or config error
 
 # Supported file extensions
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt", ".md", ".pptx", ".ppt", ".dxf", ".jsonl"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt", ".md", ".pptx", ".ppt", ".dxf", ".jsonl", ".numbers"}
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -335,6 +335,10 @@ def parse_file(filepath, config):
 
     elif ext == ".jsonl":
         from parsers.jsonl import parse
+        text = parse(filepath)
+
+    elif ext == ".numbers":
+        from parsers.numbers import parse
         text = parse(filepath)
 
     else:
