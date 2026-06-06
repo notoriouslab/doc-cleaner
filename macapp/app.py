@@ -19,7 +19,7 @@ import core as _core
 GITHUB_URL = "https://github.com/notoriouslab/doc-cleaner"
 
 SUPPORTED_TYPES = (
-    "支援格式 (*.pdf;*.docx;*.xlsx;*.xls;*.csv;*.txt;*.md;*.pptx;*.dxf;*.doc;*.ppt;*.jsonl;*.numbers;*.pages;*.key)",
+    "支援格式 (*.pdf;*.docx;*.xlsx;*.xls;*.csv;*.txt;*.md;*.pptx;*.dxf;*.doc;*.ppt;*.jsonl;*.numbers;*.pages;*.key;*.epub)",
     "All files (*.*)",
 )
 
