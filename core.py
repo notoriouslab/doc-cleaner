@@ -60,7 +60,14 @@ def _run_one(filepath, ai_backend, prompt, config, output_dir, dry_run=False):
     if status == "error":
         error_msg = capture.messages[-1] if capture.messages else "轉換失敗"
     elif status == "skipped":
-        error_msg = "未擷取到文字內容"
+        # surface an actionable hint when any parser logged one — e.g. a modern
+        # iWork file whose content can't be extracted and should be exported to
+        # PDF. Scan all captured messages, not just the last (process_file also
+        # logs a generic "No content extracted" line after the parser's hint).
+        if any("export" in m.lower() or "匯出" in m for m in capture.messages):
+            error_msg = "此檔無可擷取的內嵌內容；請用原 App 匯出 PDF 後再轉換"
+        else:
+            error_msg = "未擷取到文字內容"
     else:
         error_msg = None
 

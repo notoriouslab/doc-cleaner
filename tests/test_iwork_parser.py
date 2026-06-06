@@ -73,6 +73,16 @@ class TestPages:
         assert "doc.pages" in caplog.text
         assert "export" in caplog.text.lower()
 
+    def test_modern_pages_gui_shows_export_hint(self, tmp_path):
+        """core._run_one surfaces the export-to-PDF hint (not the generic skip
+        message) for a modern .pages — guards the multi-message scan in core."""
+        import core
+        path = _make_iwork_file(tmp_path, ".pages", {"Index/Document.iwa": b"x"})
+        config, ai, prompt = core._build_env(ai="none")
+        result = core._run_one(path, ai, prompt, config, str(tmp_path))
+        assert result["status"] == "skipped"
+        assert "匯出 PDF" in result["error"]
+
 
 # ── TestKeynoteFallback: IWA-empty falls back to QuickLook PDF ──────────────────
 

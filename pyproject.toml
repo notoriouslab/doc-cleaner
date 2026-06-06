@@ -1,7 +1,7 @@
 [tool.briefcase]
 project_name = "DocCleaner"
 bundle = "com.notoriouslab"
-version = "1.4.0"
+version = "1.5.0"
 url = "https://github.com/notoriouslab/doc-cleaner"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -21,6 +21,10 @@ sources = [
     "ai",
     "output",
     "prompts",
+    # bundled so the About panel can read the version at runtime (packaged apps
+    # have no pyproject on the dev path) and so the README ships inside the app
+    "pyproject.toml",
+    "README.md",
 ]
 # proxy_tools is a pywebview dependency available only as source on PyPI.
 # Briefcase uses --only-binary :all: which blocks source installs.
