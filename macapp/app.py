@@ -5,32 +5,67 @@ Entry point: main()
 Bridge:      Api class (exposed as pywebview.api in JS)
 """
 import json
+import locale
 import subprocess
+import sys
 import threading
+import tomllib
 from pathlib import Path
 
 import webview
 
 import core as _core
 
+GITHUB_URL = "https://github.com/notoriouslab/doc-cleaner"
+
 SUPPORTED_TYPES = (
-    "支援格式 (*.pdf;*.docx;*.xlsx;*.xls;*.csv;*.txt;*.md;*.pptx;*.dxf;*.doc;*.ppt;*.jsonl)",
+    "支援格式 (*.pdf;*.docx;*.xlsx;*.xls;*.csv;*.txt;*.md;*.pptx;*.dxf;*.doc;*.ppt;*.jsonl;*.numbers)",
     "All files (*.*)",
 )
+
+_URL_WHITELIST = {GITHUB_URL}
+
+
+def _read_version():
+    """Read version from pyproject.toml; return 'unknown' on any failure."""
+    try:
+        toml_path = Path(__file__).parent.parent / "pyproject.toml"
+        with open(toml_path, "rb") as f:
+            data = tomllib.load(f)
+        return data.get("tool", {}).get("briefcase", {}).get("version", "unknown")
+    except Exception:
+        return "unknown"
+
+
+def _detect_lang():
+    """Detect system locale; return 'zh' for zh-* locales, else 'en'."""
+    try:
+        loc, _ = locale.getlocale()
+        if loc and loc.lower().startswith("zh"):
+            return "zh"
+    except Exception:
+        pass
+    return "en"
+
 
 _HTML = """<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>文件清洗工具</title>
+  <title>Doc Cleaner</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Helvetica Neue", sans-serif;
       background: #f5f5f7; color: #1d1d1f; padding: 24px; min-height: 100vh;
     }
-    h1 { font-size: 22px; font-weight: 600; margin-bottom: 20px; }
+    .header-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    h1 { font-size: 22px; font-weight: 600; }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
     .card {
       background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px;
       box-shadow: 0 1px 3px rgba(0,0,0,.1);
@@ -49,6 +84,11 @@ _HTML = """<!DOCTYPE html>
     button:active { opacity: .7; }
     .btn-primary { background: #007aff; color: white; }
     .btn-secondary { background: #e5e5ea; color: #1d1d1f; }
+    .btn-header {
+      background: #f2f2f7; color: #007aff; font-size: 13px;
+      padding: 6px 12px; border-radius: 8px;
+    }
+    .btn-header:hover { background: #e5e5ea; }
     button:disabled { opacity: .4; cursor: default; }
     .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
     .output-mode { display: flex; gap: 16px; align-items: center; font-size: 15px; }
@@ -82,19 +122,51 @@ _HTML = """<!DOCTYPE html>
       background: #34c759; color: white; font-size: 16px;
       padding: 12px 32px; border-radius: 10px; width: 100%; margin-top: 4px;
     }
+    /* About overlay */
+    #about-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    #about-overlay.visible { display: flex; }
+    .about-panel {
+      background: white; border-radius: 16px; padding: 28px 32px;
+      min-width: 300px; box-shadow: 0 8px 32px rgba(0,0,0,.22);
+    }
+    .about-app-name { font-size: 20px; font-weight: 700; margin-bottom: 16px; }
+    .about-row {
+      display: flex; justify-content: space-between; gap: 16px;
+      font-size: 14px; padding: 6px 0; border-bottom: 1px solid #f2f2f7;
+    }
+    .about-row:last-of-type { border: none; }
+    .about-row-label { color: #636366; }
+    .about-row-value { color: #1d1d1f; text-align: right; }
+    .btn-about-link {
+      background: none; color: #007aff; font-size: 13px; padding: 0;
+      border-radius: 0; text-decoration: underline; cursor: pointer;
+    }
+    .about-close-row { margin-top: 20px; text-align: center; }
   </style>
 </head>
 <body>
-  <h1>文件清洗工具</h1>
+
+  <div class="header-row">
+    <h1 data-i18n="title">文件清洗工具</h1>
+    <div class="header-actions">
+      <button class="btn-header" id="btn-github" data-i18n="github">GitHub</button>
+      <button class="btn-header" id="btn-about">?</button>
+      <button class="btn-header" id="btn-lang" style="display:none">EN</button>
+    </div>
+  </div>
 
   <div class="card">
     <div class="drop-zone" id="drop-zone">
-      <p>📂 將文件拖放至此</p>
-      <p class="hint">或使用下方按鈕選擇</p>
+      <p data-i18n="dropZoneText">📂 將文件拖放至此</p>
+      <p class="hint" data-i18n="dropZoneHint">或使用下方按鈕選擇</p>
     </div>
     <div class="row">
-      <button class="btn-primary" id="btn-pick">選擇檔案</button>
-      <button class="btn-secondary" id="btn-clear" style="display:none">清除選擇</button>
+      <button class="btn-primary" id="btn-pick" data-i18n="pickFiles">選擇檔案</button>
+      <button class="btn-secondary" id="btn-clear" style="display:none" data-i18n="clearFiles">清除選擇</button>
     </div>
     <ul id="file-list"></ul>
     <div id="file-count"></div>
@@ -102,9 +174,9 @@ _HTML = """<!DOCTYPE html>
 
   <div class="card">
     <div class="output-mode">
-      <span>輸出位置：</span>
-      <label><input type="radio" name="mode" value="sibling" checked> 同資料夾</label>
-      <label><input type="radio" name="mode" value="desktop"> 桌面</label>
+      <span data-i18n="outputLabel">輸出位置：</span>
+      <label><input type="radio" name="mode" value="sibling" checked> <span data-i18n="outputSibling">同資料夾</span></label>
+      <label><input type="radio" name="mode" value="desktop"> <span data-i18n="outputDesktop">桌面</span></label>
     </div>
   </div>
 
@@ -113,13 +185,108 @@ _HTML = """<!DOCTYPE html>
     <ul id="results"></ul>
   </div>
 
-  <button class="btn-convert" id="btn-convert" disabled>轉換</button>
+  <button class="btn-convert" id="btn-convert" disabled data-i18n="convert">轉換</button>
+
+  <!-- About overlay (D4: in-page, no extra window) -->
+  <div id="about-overlay">
+    <div class="about-panel" id="about-panel">
+      <div class="about-app-name">Doc Cleaner</div>
+      <div class="about-row">
+        <span class="about-row-label" data-i18n="aboutVersion">版本</span>
+        <span class="about-row-value" id="about-ver">—</span>
+      </div>
+      <div class="about-row">
+        <span class="about-row-label" data-i18n="aboutLicense">授權</span>
+        <span class="about-row-value">MIT</span>
+      </div>
+      <div class="about-row">
+        <span class="about-row-label" data-i18n="aboutAuthor">作者</span>
+        <span class="about-row-value">notoriouslab</span>
+      </div>
+      <div class="about-row">
+        <span class="about-row-label">GitHub</span>
+        <button class="btn-about-link about-row-value" id="btn-about-github">github.com/notoriouslab/doc-cleaner</button>
+      </div>
+      <div class="about-close-row">
+        <button class="btn-secondary" id="btn-about-close" data-i18n="aboutClose" style="padding:8px 24px">關閉</button>
+      </div>
+    </div>
+  </div>
 
   <script>
+    // ── i18n string table (D2) ─────────────────────────────────────────────
+    var STRINGS = {
+      zh: {
+        title:        '文件清洗工具',
+        github:       'GitHub',
+        dropZoneText: '📂 將文件拖放至此',
+        dropZoneHint: '或使用下方按鈕選擇',
+        pickFiles:    '選擇檔案',
+        clearFiles:   '清除選擇',
+        outputLabel:  '輸出位置：',
+        outputSibling:'同資料夾',
+        outputDesktop:'桌面',
+        convert:      '轉換',
+        revealInFinder:'在 Finder 顯示',
+        preparing:    '準備中…',
+        done:         '完成',
+        aboutVersion: '版本',
+        aboutLicense: '授權',
+        aboutAuthor:  '作者',
+        aboutClose:   '關閉'
+      },
+      en: {
+        title:        'Doc Cleaner',
+        github:       'GitHub',
+        dropZoneText: '📂 Drop files here',
+        dropZoneHint: 'or use the button below',
+        pickFiles:    'Choose Files',
+        clearFiles:   'Clear',
+        outputLabel:  'Output:',
+        outputSibling:'Same folder',
+        outputDesktop:'Desktop',
+        convert:      'Convert',
+        revealInFinder:'Show in Finder',
+        preparing:    'Preparing…',
+        done:         'Done',
+        aboutVersion: 'Version',
+        aboutLicense: 'License',
+        aboutAuthor:  'Author',
+        aboutClose:   'Close'
+      }
+    };
+
+    var _lang = 'zh';
     var selectedPaths = [];
 
+    // ── render / setLang (D2) ──────────────────────────────────────────────
+    function setLang(code) {
+      _lang = (STRINGS[code] ? code : 'en');
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var key = el.getAttribute('data-i18n');
+        var val = STRINGS[_lang][key];
+        if (val !== undefined) el.textContent = val;
+      });
+      // Toggle button shows the OTHER language
+      var toggle = document.getElementById('btn-lang');
+      if (toggle) toggle.textContent = (_lang === 'zh' ? 'EN' : 'ZH');
+    }
+
+    // ── init — called from Python after page loads ──────────────────────────
+    function init(langCode, isMacos) {
+      setLang(langCode);
+      if (isMacos) {
+        document.getElementById('btn-lang').style.display = '';
+      }
+      // Pre-fetch app info for About overlay
+      pywebview.api.get_app_info().then(function(info) {
+        document.getElementById('about-ver').textContent = info.version;
+      });
+    }
+
+    // ── file selection ─────────────────────────────────────────────────────
     function renderFiles() {
-      var list = document.getElementById('file-list');
+      var list  = document.getElementById('file-list');
       var count = document.getElementById('file-count');
       list.innerHTML = '';
       selectedPaths.forEach(function(p) {
@@ -129,7 +296,9 @@ _HTML = """<!DOCTYPE html>
         list.appendChild(li);
       });
       var n = selectedPaths.length;
-      count.textContent = n > 0 ? '已選 ' + n + ' 個檔案' : '';
+      count.textContent = n > 0
+        ? (_lang === 'zh' ? '已選 ' + n + ' 個檔案' : n + ' file(s) selected')
+        : '';
       document.getElementById('btn-clear').style.display = n > 0 ? '' : 'none';
       document.getElementById('btn-convert').disabled = n === 0;
     }
@@ -138,7 +307,7 @@ _HTML = """<!DOCTYPE html>
       pywebview.api.pick_files().then(function(paths) {
         if (paths && paths.length) {
           paths.forEach(function(p) {
-            if (!selectedPaths.includes(p)) selectedPaths.push(p);
+            if (selectedPaths.indexOf(p) === -1) selectedPaths.push(p);
           });
           renderFiles();
         }
@@ -152,17 +321,14 @@ _HTML = """<!DOCTYPE html>
       document.getElementById('progress-label').textContent = '';
     });
 
-    // drag-and-drop (best-effort — full paths depend on platform/context)
+    // ── drag-and-drop ──────────────────────────────────────────────────────
     var dz = document.getElementById('drop-zone');
-    dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('hover'); });
-    dz.addEventListener('dragleave', function() { dz.classList.remove('hover'); });
+    dz.addEventListener('dragover',  function(e) { e.preventDefault(); dz.classList.add('hover'); });
+    dz.addEventListener('dragleave', function()  { dz.classList.remove('hover'); });
     dz.addEventListener('drop', function(e) {
       e.preventDefault();
       dz.classList.remove('hover');
-      document.getElementById('file-count').textContent = '讀取中…';
-      // pywebview reads file URLs from macOS NSPasteboard in performDragOperation_,
-      // but only when _dnd_state['num_listeners'] > 0 (set in main()).
-      // We ask Python for those paths via get_dropped_paths().
+      document.getElementById('file-count').textContent = _lang === 'zh' ? '讀取中…' : 'Loading…';
       pywebview.api.get_dropped_paths().then(function(paths) {
         if (paths && paths.length) {
           onDropPaths(paths);
@@ -173,37 +339,63 @@ _HTML = """<!DOCTYPE html>
       });
     });
 
+    // ── convert ────────────────────────────────────────────────────────────
     document.getElementById('btn-convert').addEventListener('click', function() {
       var mode = document.querySelector('input[name=mode]:checked').value;
       document.getElementById('results').innerHTML = '';
-      document.getElementById('progress-label').textContent = '準備中…';
+      document.getElementById('progress-label').textContent = STRINGS[_lang].preparing;
       document.getElementById('btn-convert').disabled = true;
       document.getElementById('btn-pick').disabled = true;
       pywebview.api.convert(selectedPaths, mode);
     });
 
-    // called from Python via window.evaluate_js()
+    // ── GitHub header button (D5) ──────────────────────────────────────────
+    document.getElementById('btn-github').addEventListener('click', function() {
+      pywebview.api.open_url('https://github.com/notoriouslab/doc-cleaner');
+    });
+
+    // ── lang toggle (Manual language toggle) ──────────────────────────────
+    document.getElementById('btn-lang').addEventListener('click', function() {
+      setLang(_lang === 'zh' ? 'en' : 'zh');
+      renderFiles(); // refresh count text
+    });
+
+    // ── About overlay (D4) ────────────────────────────────────────────────
+    document.getElementById('btn-about').addEventListener('click', function() {
+      document.getElementById('about-overlay').classList.add('visible');
+    });
+    document.getElementById('btn-about-close').addEventListener('click', function() {
+      document.getElementById('about-overlay').classList.remove('visible');
+    });
+    document.getElementById('about-overlay').addEventListener('click', function(e) {
+      // Close when clicking the scrim (not the panel itself)
+      if (e.target === this) this.classList.remove('visible');
+    });
+    document.getElementById('btn-about-github').addEventListener('click', function() {
+      pywebview.api.open_url('https://github.com/notoriouslab/doc-cleaner');
+    });
+
+    // ── Python-called callbacks ────────────────────────────────────────────
     function onProgress(current, total) {
-      document.getElementById('progress-label').textContent =
-        '第 ' + current + '／共 ' + total + ' 個';
+      document.getElementById('progress-label').textContent = _lang === 'zh'
+        ? '第 ' + current + '／共 ' + total + ' 個'
+        : current + ' / ' + total;
     }
 
     function onResult(result) {
       var ul = document.getElementById('results');
       var li = document.createElement('li');
       var ok = result.status === 'ok';
-      // Build static parts via innerHTML (no user-controlled attributes)
       li.innerHTML =
         '<span class="icon">' + (ok ? '✅' : '❌') + '</span>' +
         '<div class="file-info">' +
           '<div class="file-name">' + escHtml(result.file) + '</div>' +
           (result.error ? '<div class="file-err">' + escHtml(result.error) + '</div>' : '') +
         '</div>';
-      // Reveal button uses data-path to avoid onclick attribute quoting issues
       if (ok && result.output) {
         var btn = document.createElement('button');
         btn.className = 'btn-reveal';
-        btn.textContent = '在 Finder 顯示';
+        btn.textContent = STRINGS[_lang].revealInFinder;
         btn.dataset.path = result.output;
         btn.addEventListener('click', function() {
           pywebview.api.reveal_in_finder(this.dataset.path);
@@ -214,15 +406,14 @@ _HTML = """<!DOCTYPE html>
     }
 
     function onComplete() {
-      document.getElementById('progress-label').textContent = '完成';
+      document.getElementById('progress-label').textContent = STRINGS[_lang].done;
       document.getElementById('btn-convert').disabled = false;
       document.getElementById('btn-pick').disabled = false;
     }
 
-    // Called from Python after pywebview reads dropped file paths from macOS NSPasteboard
     function onDropPaths(paths) {
       paths.forEach(function(p) {
-        if (!selectedPaths.includes(p)) selectedPaths.push(p);
+        if (selectedPaths.indexOf(p) === -1) selectedPaths.push(p);
       });
       renderFiles();
     }
@@ -242,8 +433,19 @@ class Api:
 
     _window = None  # assigned by main() after create_window()
 
-    def __init__(self):
+    def __init__(self, app_info=None):
         self._batch_lock = threading.Lock()
+        self._app_info = app_info or {"version": "unknown", "author": "notoriouslab", "license": "MIT", "url": GITHUB_URL}
+
+    def get_app_info(self):
+        """Return app metadata dict for the About overlay (D3)."""
+        return self._app_info
+
+    def open_url(self, url):
+        """Open URL in system browser (D5). Silently rejects unlisted URLs."""
+        if url not in _URL_WHITELIST:
+            return
+        subprocess.run(["open", url], check=False)
 
     def pick_files(self):
         """Open native file dialog. Returns list of absolute path strings."""
@@ -266,7 +468,6 @@ class Api:
         ).start()
 
     def _run_batch_guarded(self, paths, output_mode):
-        """Wrapper that releases _batch_lock when _run_batch finishes."""
         try:
             self._run_batch(paths, output_mode)
         finally:
@@ -276,7 +477,6 @@ class Api:
         """
         Build config+backend once, loop per file pushing progress to JS.
         Resolves symlinks before processing (mirrors CLI's security policy).
-        Calls onProgress(current, total) before each file and onResult(dict) after.
         """
         total = len(paths)
         config, ai_backend, prompt = _core._build_env(ai="none")
@@ -286,7 +486,7 @@ class Api:
             return desktop if output_mode == "desktop" else str(Path(path).parent)
 
         for i, path in enumerate(paths):
-            path = str(Path(path).resolve())   # B2: resolve symlinks (mirrors CLI policy)
+            path = str(Path(path).resolve())
             self._window.evaluate_js(f"onProgress({i + 1}, {total})")
             result = _core._run_one(path, ai_backend, prompt, config, _resolver(path))
             self._window.evaluate_js(
@@ -296,31 +496,33 @@ class Api:
         self._window.evaluate_js("onComplete()")
 
     def get_dropped_paths(self):
-        """Return file paths captured from macOS NSPasteboard after a drop event.
-
-        pywebview's cocoa backend stores paths in _dnd_state['paths'] inside
-        performDragOperation_, but only when _dnd_state['num_listeners'] > 0
-        (set directly in main() at startup to avoid DOM API timing issues).
-        """
+        """Return file paths captured from macOS NSPasteboard after a drop event."""
         from webview.dom import _dnd_state
         paths = [p for _name, p in _dnd_state["paths"]]
         _dnd_state["paths"].clear()
         return paths
 
     def reveal_in_finder(self, path):
-        """Reveal file in platform file manager. Delegates to parsers._platform."""
+        """Reveal file in platform file manager."""
         from parsers._platform import reveal_in_file_manager
         reveal_in_file_manager(path)
 
 
 def main():
-    # Tell pywebview's macOS backend to capture dropped file paths from NSPasteboard.
-    # performDragOperation_ only stores paths when _dnd_state['num_listeners'] > 0.
-    # We set this directly instead of using element.on() to avoid DOM API timing issues.
     from webview.dom import _dnd_state
     _dnd_state["num_listeners"] = 1
 
-    api = Api()
+    # Detect locale and build app info once (D1, D3)
+    lang = _detect_lang() if sys.platform == "darwin" else "en"
+    is_macos = sys.platform == "darwin"
+    app_info = {
+        "version": _read_version(),
+        "author": "notoriouslab",
+        "license": "MIT",
+        "url": GITHUB_URL,
+    }
+
+    api = Api(app_info)
     window = webview.create_window(
         "Doc Cleaner",
         html=_HTML,
@@ -330,4 +532,11 @@ def main():
         min_size=(500, 600),
     )
     api._window = window
+
+    # Inject initial language after page loads (D1, D2)
+    is_macos_js = "true" if is_macos else "false"
+    window.events.loaded += lambda: window.evaluate_js(
+        f"init('{lang}', {is_macos_js})"
+    )
+
     webview.start(debug=False)
