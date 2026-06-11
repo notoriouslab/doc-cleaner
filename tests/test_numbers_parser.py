@@ -1,9 +1,7 @@
 """Tests for parsers/numbers.py — all cases use mocked numbers_parser.Document."""
 import logging
 import sys
-from unittest.mock import MagicMock, patch, call
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────

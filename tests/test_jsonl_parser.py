@@ -3,8 +3,6 @@ import json
 import os
 import tempfile
 
-import pytest
-
 from parsers.jsonl import parse, _tool_summary, _extract_timestamp
 
 
