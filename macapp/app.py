@@ -6,6 +6,7 @@ Bridge:      Api class (exposed as pywebview.api in JS)
 """
 import json
 import locale
+import os
 import subprocess
 import sys
 import threading
@@ -14,7 +15,9 @@ from pathlib import Path
 
 import webview
 
+import cleaner
 import core as _core
+from macapp import settings
 
 GITHUB_URL = "https://github.com/notoriouslab/doc-cleaner"
 
@@ -170,6 +173,7 @@ _HTML = """<!DOCTYPE html>
     </div>
     <ul id="file-list"></ul>
     <div id="file-count"></div>
+    <div id="notice" style="display:none;margin-top:6px;font-size:12px;color:#b8860b"></div>
   </div>
 
   <div class="card">
@@ -177,6 +181,11 @@ _HTML = """<!DOCTYPE html>
       <span data-i18n="outputLabel">輸出位置：</span>
       <label><input type="radio" name="mode" value="sibling" checked> <span data-i18n="outputSibling">同資料夾</span></label>
       <label><input type="radio" name="mode" value="desktop"> <span data-i18n="outputDesktop">桌面</span></label>
+      <label><input type="radio" name="mode" value="custom"> <span data-i18n="outputCustom">選擇資料夾…</span></label>
+    </div>
+    <div id="custom-dir-row" style="display:none;margin-top:6px;font-size:12px;color:#636366">
+      <span id="custom-dir-path" style="word-break:break-all"></span>
+      <button type="button" id="btn-change-folder" data-i18n="changeFolder" style="margin-left:6px;background:none;border:none;color:#007aff;cursor:pointer;font-size:12px;padding:0;text-decoration:underline">變更…</button>
     </div>
   </div>
 
@@ -227,6 +236,8 @@ _HTML = """<!DOCTYPE html>
         outputLabel:  '輸出位置：',
         outputSibling:'同資料夾',
         outputDesktop:'桌面',
+        outputCustom: '選擇資料夾…',
+        changeFolder: '變更…',
         convert:      '轉換',
         revealInFinder:'在 Finder 顯示',
         preparing:    '準備中…',
@@ -247,6 +258,8 @@ _HTML = """<!DOCTYPE html>
         outputLabel:  'Output:',
         outputSibling:'Same folder',
         outputDesktop:'Desktop',
+        outputCustom: 'Choose folder…',
+        changeFolder: 'Change…',
         convert:      'Convert',
         revealInFinder:'Show in Finder',
         preparing:    'Preparing…',
@@ -261,6 +274,7 @@ _HTML = """<!DOCTYPE html>
 
     var _lang = 'zh';
     var selectedPaths = [];
+    var customDir = null;   // remembered custom output folder (D2)
 
     // ── render / setLang (D2) ──────────────────────────────────────────────
     function setLang(code) {
@@ -285,6 +299,53 @@ _HTML = """<!DOCTYPE html>
       pywebview.api.get_app_info().then(function(info) {
         document.getElementById('about-ver').textContent = info.version;
       });
+      // Restore saved preferences (D1/D2)
+      pywebview.api.get_prefs().then(function(prefs) {
+        if (!prefs) return;
+        customDir = prefs.custom_output_dir || null;
+        var mode = prefs.output_mode || 'sibling';
+        var radio = document.querySelector('input[name=mode][value=' + mode + ']');
+        if (radio) radio.checked = true;
+        showCustomDir();
+        document.getElementById('custom-dir-row').style.display =
+          (mode === 'custom') ? '' : 'none';
+      });
+    }
+
+    // ── custom output folder (D2) ───────────────────────────────────────────
+    function showCustomDir() {
+      var el = document.getElementById('custom-dir-path');
+      if (el) el.textContent = customDir || '';
+    }
+
+    function chooseOutputFolder() {
+      pywebview.api.pick_output_folder().then(function(dir) {
+        if (dir) {
+          customDir = dir;
+          showCustomDir();
+          document.getElementById('custom-dir-row').style.display = '';
+        } else if (!customDir) {
+          // Cancelled with no prior folder → revert to sibling
+          document.querySelector('input[name=mode][value=sibling]').checked = true;
+          document.getElementById('custom-dir-row').style.display = 'none';
+          pywebview.api.set_output_mode('sibling');
+        }
+      });
+    }
+
+    // notice area (cap notice + stale-folder fallback), localized by kind
+    function onNotice(kind, n) {
+      var msg = '';
+      if (kind === 'cap') {
+        msg = (_lang === 'zh') ? ('只載入前 ' + n + ' 個檔案') : ('Loaded first ' + n + ' files');
+      } else if (kind === 'fallbackSibling') {
+        msg = (_lang === 'zh')
+          ? '輸出資料夾不存在，已改存到原始檔案所在資料夾'
+          : 'Output folder missing; saved beside source files instead';
+      }
+      var el = document.getElementById('notice');
+      el.textContent = msg;
+      el.style.display = msg ? '' : 'none';
     }
 
     // ── file selection ─────────────────────────────────────────────────────
@@ -342,6 +403,25 @@ _HTML = """<!DOCTYPE html>
       });
     });
 
+    // ── output mode change (D2: persist + custom folder picker) ─────────────
+    document.querySelectorAll('input[name=mode]').forEach(function(r) {
+      r.addEventListener('change', function() {
+        var mode = this.value;
+        document.getElementById('custom-dir-row').style.display =
+          (mode === 'custom') ? '' : 'none';
+        if (mode === 'custom' && !customDir) {
+          chooseOutputFolder();
+        } else {
+          pywebview.api.set_output_mode(mode);
+        }
+      });
+    });
+
+    // "變更…" — re-open the folder picker to change an already-chosen folder.
+    document.getElementById('btn-change-folder').addEventListener('click', function() {
+      chooseOutputFolder();
+    });
+
     // ── convert ────────────────────────────────────────────────────────────
     document.getElementById('btn-convert').addEventListener('click', function() {
       var mode = document.querySelector('input[name=mode]:checked').value;
@@ -349,7 +429,7 @@ _HTML = """<!DOCTYPE html>
       document.getElementById('progress-label').textContent = STRINGS[_lang].preparing;
       document.getElementById('btn-convert').disabled = true;
       document.getElementById('btn-pick').disabled = true;
-      pywebview.api.convert(selectedPaths, mode);
+      pywebview.api.convert(selectedPaths, mode, (mode === 'custom') ? customDir : null);
     });
 
     // ── GitHub header button (D5) ──────────────────────────────────────────
@@ -439,10 +519,52 @@ class Api:
     def __init__(self, app_info=None):
         self._batch_lock = threading.Lock()
         self._app_info = app_info or {"version": "unknown", "author": "notoriouslab", "license": "MIT", "url": GITHUB_URL}
+        self._settings = settings.load()  # D1: never raises; defaults on missing/corrupt
 
     def get_app_info(self):
         """Return app metadata dict for the About overlay (D3)."""
         return self._app_info
+
+    # ── preferences (D1/D2) ──────────────────────────────────────────────
+    def get_prefs(self):
+        """Return the persisted preferences for the front-end to restore on launch."""
+        return {
+            "output_mode": self._settings.get("output_mode", "sibling"),
+            "custom_output_dir": self._settings.get("custom_output_dir"),
+            "last_input_dir": self._settings.get("last_input_dir"),
+        }
+
+    def set_output_mode(self, mode):
+        """Persist the chosen output mode (sibling/desktop/custom)."""
+        self._settings["output_mode"] = mode
+        settings.save(self._settings)
+
+    def pick_output_folder(self):
+        """Open a native folder dialog (seeded at the last custom folder).
+
+        Returns the chosen absolute path (or "" if cancelled). On success,
+        persists output_mode="custom" and the chosen folder."""
+        seed = self._settings.get("custom_output_dir") or ""
+        result = self._window.create_file_dialog(
+            webview.FileDialog.FOLDER,
+            directory=seed,
+        )
+        chosen = (list(result)[0] if result else "")
+        if chosen:
+            self._settings["output_mode"] = "custom"
+            self._settings["custom_output_dir"] = chosen
+            settings.save(self._settings)
+        return chosen
+
+    def _remember_input_dir(self, path):
+        """Persist the parent directory of a picked/dropped source (D2)."""
+        try:
+            parent = str(Path(path).parent)
+        except (TypeError, ValueError):
+            return
+        if parent and parent != self._settings.get("last_input_dir"):
+            self._settings["last_input_dir"] = parent
+            settings.save(self._settings)
 
     def open_url(self, url):
         """Open URL in system browser (D5). Silently rejects unlisted URLs."""
@@ -451,32 +573,37 @@ class Api:
         subprocess.run(["open", url], check=False)
 
     def pick_files(self):
-        """Open native file dialog. Returns list of absolute path strings."""
+        """Open native file dialog (seeded at the last input dir, D2).
+        Returns list of absolute path strings; remembers the source folder."""
         result = self._window.create_file_dialog(
             webview.FileDialog.OPEN,
+            directory=self._settings.get("last_input_dir") or "",
             allow_multiple=True,
             file_types=SUPPORTED_TYPES,
         )
-        return list(result) if result else []
+        paths = list(result) if result else []
+        if paths:
+            self._remember_input_dir(paths[0])
+        return paths
 
-    def convert(self, paths, output_mode):
+    def convert(self, paths, output_mode, custom_dir=None):
         """Start batch conversion on a daemon background thread (non-blocking).
         If a batch is already running the call is silently ignored."""
         if not self._batch_lock.acquire(blocking=False):
             return
         threading.Thread(
             target=self._run_batch_guarded,
-            args=(paths, output_mode),
+            args=(paths, output_mode, custom_dir),
             daemon=True,
         ).start()
 
-    def _run_batch_guarded(self, paths, output_mode):
+    def _run_batch_guarded(self, paths, output_mode, custom_dir=None):
         try:
-            self._run_batch(paths, output_mode)
+            self._run_batch(paths, output_mode, custom_dir)
         finally:
             self._batch_lock.release()
 
-    def _run_batch(self, paths, output_mode):
+    def _run_batch(self, paths, output_mode, custom_dir=None):
         """
         Build config+backend once, loop per file pushing progress to JS.
         Resolves symlinks before processing (mirrors CLI's security policy).
@@ -485,8 +612,18 @@ class Api:
         config, ai_backend, prompt = _core._build_env(ai="none")
         desktop = str(Path.home() / "Desktop")
 
+        # D2: custom output dir; if it's gone, fall back to sibling + notify once.
+        if output_mode == "custom" and not (custom_dir and os.path.isdir(custom_dir)):
+            output_mode = "sibling"
+            if self._window:
+                self._window.evaluate_js("onNotice('fallbackSibling')")
+
         def _resolver(path):
-            return desktop if output_mode == "desktop" else str(Path(path).parent)
+            if output_mode == "desktop":
+                return desktop
+            if output_mode == "custom":
+                return custom_dir
+            return str(Path(path).parent)
 
         for i, path in enumerate(paths):
             path = str(Path(path).resolve())
@@ -499,11 +636,40 @@ class Api:
         self._window.evaluate_js("onComplete()")
 
     def get_dropped_paths(self):
-        """Return file paths captured from macOS NSPasteboard after a drop event."""
+        """Return supported file paths from a drop event (D3).
+
+        Directories are expanded recursively into their supported files; loose
+        files are kept if supported. Remembers the source folder and notifies
+        the front-end when a folder expansion hits the recursion cap."""
         from webview.dom import _dnd_state
-        paths = [p for _name, p in _dnd_state["paths"]]
+        raw = [p for _name, p in _dnd_state["paths"]]
         _dnd_state["paths"].clear()
-        return paths
+
+        expanded = []
+        capped = False
+        for p in raw:
+            if os.path.isdir(p):
+                collected = cleaner.collect_files(p, recursive=True)
+                if len(collected) >= cleaner.MAX_RECURSIVE_FILES:
+                    capped = True
+                expanded.extend(collected)
+            elif os.path.isfile(p):
+                if os.path.splitext(p)[1].lower() in cleaner.SUPPORTED_EXTENSIONS:
+                    expanded.append(os.path.realpath(p))
+
+        # De-duplicate, preserving order.
+        seen = set()
+        result = []
+        for p in expanded:
+            if p not in seen:
+                seen.add(p)
+                result.append(p)
+
+        if raw:
+            self._remember_input_dir(raw[0])
+        if capped and self._window:
+            self._window.evaluate_js(f"onNotice('cap', {cleaner.MAX_RECURSIVE_FILES})")
+        return result
 
     def reveal_in_finder(self, path):
         """Reveal file in platform file manager."""

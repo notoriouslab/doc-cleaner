@@ -38,6 +38,11 @@ EXIT_NO_INPUT = 2       # no processable files found or config error
 # Supported file extensions
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".txt", ".md", ".pptx", ".ppt", ".dxf", ".jsonl", ".numbers", ".pages", ".key", ".epub"}
 
+# Upper bound on files collected from a single recursive directory scan (GUI
+# folder-drop, D3). Generous for real personal folders, but bounds a pathological
+# tree. When hit, collection stops and a warning is logged (no silent truncation).
+MAX_RECURSIVE_FILES = 1000
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 
@@ -404,7 +409,7 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False
         if ext == ".jsonl":
             # JSONL transcripts are pre-formatted Markdown — bypass AI and PII redaction intentionally.
             # Output contains full conversation content; callers should treat the result as sensitive.
-            logger.info(f"  JSONL transcript: AI and PII redaction bypassed — output contains full conversation")
+            logger.info("  JSONL transcript: AI and PII redaction bypassed — output contains full conversation")
             from output.markdown import render_raw_output
             frontmatter = config.get("output", {}).get("frontmatter", True)
             final_text = render_raw_output(text, filename=filename, source_path=filepath, frontmatter=frontmatter)
@@ -473,7 +478,7 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False
 
                 # Graceful degradation: if JSON repair failed badly, fall back to raw mode
                 if data.get("status") == "partial_recovery" and text:
-                    logger.warning(f"  AI JSON output corrupted — falling back to raw mode")
+                    logger.warning("  AI JSON output corrupted — falling back to raw mode")
                     content = render_raw_output(
                         text, filename, source_path=filename,
                         frontmatter=frontmatter,
@@ -526,8 +531,48 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False
         return "error", None
 
 
-def collect_files(input_path):
-    """Collect processable files from a path (file or directory)."""
+def _collect_dir_recursive(input_path, real_root):
+    """Recursively collect supported files under a directory (GUI folder-drop, D3).
+
+    Preserves the symlink-escape guard (a file's resolved path must stay under
+    the directory root), does not follow symlinked subdirectories
+    (``followlinks=False``), traverses deterministically (sorted), and stops at
+    ``MAX_RECURSIVE_FILES`` — logging a warning when the cap is reached.
+    """
+    files = []
+    capped = False
+    for dirpath, dirnames, filenames in os.walk(input_path, followlinks=False):
+        dirnames.sort()  # deterministic descent order
+        for name in sorted(filenames):
+            if os.path.splitext(name)[1].lower() not in SUPPORTED_EXTENSIONS:
+                continue
+            fp = os.path.realpath(os.path.join(dirpath, name))
+            # P4 security: reject files whose resolved path escapes the root.
+            if not fp.startswith(real_root + os.sep) and fp != real_root:
+                logger.warning(f"Skipping symlink escape: {name}")
+                continue
+            files.append(fp)
+            if len(files) >= MAX_RECURSIVE_FILES:
+                capped = True
+                break
+        if capped:
+            break
+    if capped:
+        logger.warning(
+            f"Recursive scan capped at {MAX_RECURSIVE_FILES} files; "
+            "additional files were not collected"
+        )
+    return files
+
+
+def collect_files(input_path, recursive=False):
+    """Collect processable files from a path (file or directory).
+
+    With ``recursive=False`` (default, used by the CLI) a directory is scanned
+    one level deep and subdirectories are skipped — behavior is byte-for-byte
+    unchanged. With ``recursive=True`` (used by the GUI folder-drop) a directory
+    is walked recursively via :func:`_collect_dir_recursive`.
+    """
     if os.path.isfile(input_path):
         # Security: resolve symlinks to prevent directory traversal
         real_path = os.path.realpath(input_path)
@@ -542,6 +587,8 @@ def collect_files(input_path):
 
     if os.path.isdir(input_path):
         real_root = os.path.realpath(input_path)
+        if recursive:
+            return _collect_dir_recursive(input_path, real_root)
         files = []
         skipped_dirs = []
         for f in sorted(os.listdir(input_path)):

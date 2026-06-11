@@ -4,12 +4,21 @@ import platform
 import re
 import threading
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 # Skip entire module when pywebview is not installed (e.g. CI without GUI deps)
 pytest.importorskip("webview", reason="pywebview not installed")
+
+
+@pytest.fixture(autouse=True)
+def _isolate_settings(tmp_path_factory, monkeypatch):
+    """Isolate preferences I/O to a temp dir so Api tests never touch the real
+    user settings file (Api.__init__ loads, several methods save)."""
+    from macapp import settings as _settings
+    d = tmp_path_factory.mktemp("appdata")
+    monkeypatch.setattr(_settings, "app_data_dir", lambda: str(d))
 
 
 def _make_api():
@@ -79,7 +88,7 @@ class TestConvertBackgroundThread:
         started = threading.Event()
         finished = threading.Event()
 
-        def _slow_batch(paths, mode):
+        def _slow_batch(paths, mode, custom_dir=None):
             started.set()
             finished.wait(timeout=5)
 
@@ -274,3 +283,138 @@ class TestTraditionalChineseUI:
         simplified = ["选择", "清除选", "转换", "桌面文件"]
         for s in simplified:
             assert s not in _HTML, f"Found Simplified Chinese: {s!r}"
+
+
+# ── Phase A: preferences, custom output folder, recursive drop ───────────────
+
+class TestPreferences:
+    def test_get_prefs_returns_persisted(self):
+        api = _make_api()
+        api.set_output_mode("desktop")
+        prefs = api.get_prefs()
+        assert prefs["output_mode"] == "desktop"
+        assert "custom_output_dir" in prefs and "last_input_dir" in prefs
+
+    def test_set_output_mode_persists_across_instances(self):
+        api = _make_api()
+        api.set_output_mode("desktop")
+        # A fresh Api should load the saved mode (same isolated settings dir).
+        api2 = _make_api()
+        assert api2.get_prefs()["output_mode"] == "desktop"
+
+    def test_pick_output_folder_persists_custom(self, tmp_path):
+        api = _make_api()
+        api._window.create_file_dialog.return_value = [str(tmp_path)]
+        chosen = api.pick_output_folder()
+        assert chosen == str(tmp_path)
+        prefs = api.get_prefs()
+        assert prefs["output_mode"] == "custom"
+        assert prefs["custom_output_dir"] == str(tmp_path)
+        # seeded at the previously-saved dir (empty string on first use)
+        args, kwargs = api._window.create_file_dialog.call_args
+        import webview
+        assert args[0] == webview.FileDialog.FOLDER
+
+    def test_pick_output_folder_cancel_returns_empty(self):
+        api = _make_api()
+        api._window.create_file_dialog.return_value = None
+        assert api.pick_output_folder() == ""
+        # nothing persisted as custom
+        assert api.get_prefs()["custom_output_dir"] is None
+
+    def test_pick_output_folder_can_change_after_first_pick(self, tmp_path):
+        """The '變更…' flow: picking a second folder replaces the first
+        (regression for "first pick works but can't change it")."""
+        api = _make_api()
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        first.mkdir()
+        second.mkdir()
+
+        api._window.create_file_dialog.return_value = [str(first)]
+        api.pick_output_folder()
+        assert api.get_prefs()["custom_output_dir"] == str(first)
+
+        # Re-pick a different folder (what the Change… button triggers).
+        api._window.create_file_dialog.return_value = [str(second)]
+        api.pick_output_folder()
+        assert api.get_prefs()["custom_output_dir"] == str(second)
+
+        # Re-pick then cancel: keeps the current folder (no revert).
+        api._window.create_file_dialog.return_value = None
+        assert api.pick_output_folder() == ""
+        assert api.get_prefs()["custom_output_dir"] == str(second)
+
+    def test_pick_files_remembers_input_dir(self, tmp_path):
+        api = _make_api()
+        f = tmp_path / "a.docx"
+        api._window.create_file_dialog.return_value = [str(f)]
+        api.pick_files()
+        assert api.get_prefs()["last_input_dir"] == str(tmp_path)
+
+
+class TestCustomOutputResolver:
+    def test_custom_dir_used_for_output(self, tmp_path):
+        api = _make_api()
+        src = tmp_path / "src"
+        src.mkdir()
+        out = tmp_path / "out"
+        out.mkdir()
+        captured = {}
+        with patch("macapp.app._core._build_env", return_value=({}, None, "")), \
+             patch("macapp.app._core._run_one",
+                   side_effect=lambda p, ab, pr, cfg, od: captured.setdefault("od", od) or {"file": "x", "status": "ok", "output": None, "error": None}):
+            api._run_batch([str(src / "a.docx")], "custom", str(out))
+        assert captured["od"] == str(out)
+
+    def test_missing_custom_dir_falls_back_to_sibling_and_notifies(self, tmp_path):
+        api = _make_api()
+        src = tmp_path / "doc.docx"
+        gone = str(tmp_path / "deleted_folder")
+        captured = {}
+        with patch("macapp.app._core._build_env", return_value=({}, None, "")), \
+             patch("macapp.app._core._run_one",
+                   side_effect=lambda p, ab, pr, cfg, od: captured.setdefault("od", od) or {"file": "x", "status": "ok", "output": None, "error": None}):
+            api._run_batch([str(src)], "custom", gone)
+        # fell back to sibling (parent of source), and pushed the fallback notice
+        assert captured["od"] == str(tmp_path)
+        assert any("onNotice('fallbackSibling')" in str(c)
+                   for c in api._window.evaluate_js.call_args_list)
+
+
+class TestRecursiveDropExpansion:
+    def _set_dnd(self, paths):
+        from webview.dom import _dnd_state
+        _dnd_state["paths"] = [(None, p) for p in paths]
+
+    def test_dropped_folder_expands_recursively(self, tmp_path):
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "top.md").write_text("x", encoding="utf-8")
+        (tmp_path / "sub" / "deep.txt").write_text("x", encoding="utf-8")
+        api = _make_api()
+        self._set_dnd([str(tmp_path)])
+        result = api.get_dropped_paths()
+        names = sorted(Path(p).name for p in result)
+        assert names == ["deep.txt", "top.md"]
+
+    def test_dropped_loose_file_kept_if_supported(self, tmp_path):
+        good = tmp_path / "a.csv"
+        good.write_text("x", encoding="utf-8")
+        bad = tmp_path / "b.bin"
+        bad.write_text("x", encoding="utf-8")
+        api = _make_api()
+        self._set_dnd([str(good), str(bad)])
+        result = api.get_dropped_paths()
+        assert [Path(p).name for p in result] == ["a.csv"]
+
+    def test_cap_fires_notice(self, tmp_path, monkeypatch):
+        import cleaner
+        monkeypatch.setattr(cleaner, "MAX_RECURSIVE_FILES", 2)
+        for i in range(4):
+            (tmp_path / f"f{i}.md").write_text("x", encoding="utf-8")
+        api = _make_api()
+        self._set_dnd([str(tmp_path)])
+        result = api.get_dropped_paths()
+        assert len(result) == 2
+        assert any("onNotice('cap'" in str(c)
+                   for c in api._window.evaluate_js.call_args_list)
