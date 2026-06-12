@@ -18,8 +18,8 @@ Part of the [notoriouslab](https://github.com/notoriouslab) open-source toolkit 
 
 | Platform | Download | Architecture |
 |----------|----------|--------------|
-| **macOS** | [Doc Cleaner-1.5.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.5.0/Doc.Cleaner-1.5.0.dmg) | Universal (Intel + Apple Silicon) |
-| **Windows** | [Doc Cleaner-1.5.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.5.0/Doc.Cleaner-1.5.0.msi) | x86_64 (runs on ARM Windows too) |
+| **macOS** | [Doc Cleaner-1.6.0.dmg](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.6.0/Doc.Cleaner-1.6.0.dmg) | Universal (Intel + Apple Silicon) |
+| **Windows** | [Doc Cleaner-1.6.0.msi](https://github.com/notoriouslab/doc-cleaner/releases/download/v1.6.0/Doc.Cleaner-1.6.0.msi) | x86_64 (runs on ARM Windows too) |
 
 > **First launch on macOS:** Right-click → Open (Ventura and earlier) or System Settings → Privacy & Security → Open Anyway (Sonoma/Sequoia)
 >
@@ -36,7 +36,7 @@ doc-cleaner focuses on **everyday document extraction** — turning the files yo
 Few free tools combine **CJK-friendly + table preservation** with coverage of **Apple Keynote/Numbers and EPUB** — that combination is doc-cleaner's strength.
 
 **Typical use cases:**
-- 🖥️ **Desktop App** — Drag-and-drop files, zero config, double-click on macOS/Windows (non-technical users)
+- 🖥️ **Desktop App** — Drag-and-drop files or whole folders, pick any output location, preview the result in-app; zero config, double-click on macOS/Windows (non-technical users)
 - 📊 **Financial statements** — Big5/CP950 auto-detected, transactions and numbers extracted intact
 - 🎬 **Slides / e-books** — Keynote slides and EPUB chapters extracted to Markdown in reading order
 - 📄 **Batch multi-format** — Mix 16 formats as input, unified Markdown output (CLI)

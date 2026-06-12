@@ -1,4 +1,4 @@
-Doc Cleaner v1.5.0
+Doc Cleaner v1.6.0
 ==================
 
 文件清洗工具——將各種文件轉換為 Markdown 格式。
@@ -9,11 +9,14 @@ Doc Cleaner v1.5.0
 
 1. 開啟 App
 2. 點「選擇檔案」按鈕，或將文件拖放到視窗中
+   （也可直接拖放整個資料夾，會自動轉換裡面所有支援的檔案，含子資料夾）
 3. 選擇輸出位置：
    • 同資料夾 — 輸出的 .md 放在原始檔案旁邊
    • 桌面 — 所有輸出集中放在桌面
+   • 選擇資料夾… — 自選任一資料夾（會記住，下次沿用）
 4. 按「轉換」
-5. 完成後點「在 Finder 顯示」查看輸出檔案
+5. 完成後可點「預覽」直接在 App 內檢視轉好的 Markdown，
+   或點「在 Finder 顯示」查看輸出檔案
 
 
 【支援格式】
@@ -64,7 +67,7 @@ Doc Cleaner v1.5.0
 ====================================================================
 
 
-Doc Cleaner v1.5.0
+Doc Cleaner v1.6.0
 ==================
 
 A document-cleaning tool — converts various documents to Markdown.
@@ -75,11 +78,15 @@ Plain-text extraction. No AI, no network, no configuration.
 
 1. Open the app
 2. Click "Choose Files", or drag documents into the window
+   (you can also drop a whole folder — every supported file inside it,
+   including subfolders, is converted)
 3. Pick an output location:
    • Same folder — the .md output sits next to the source file
    • Desktop — all output collected on the Desktop
+   • Choose folder… — pick any folder (remembered for next time)
 4. Click "Convert"
-5. When done, click "Show in Finder" to view the output
+5. When done, click "Preview" to view the converted Markdown in-app,
+   or "Show in Finder" to view the output file
 
 
 [Supported formats]

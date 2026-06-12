@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 APP = ROOT / "build/macapp/macos/app/Doc Cleaner.app"
-README = ROOT / "resources/ReadMe.txt"
+README = ROOT / "ReadMe.txt"  # single source of truth (also bundled into the app)
 
 # Version is read from pyproject.toml (single source of truth) rather than
 # hardcoded, so the DMG name always matches the built app.
