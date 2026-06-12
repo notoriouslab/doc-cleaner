@@ -17,7 +17,7 @@ import webview
 
 import cleaner
 import core as _core
-from macapp import settings
+from macapp import mdpreview, settings
 
 GITHUB_URL = "https://github.com/notoriouslab/doc-cleaner"
 
@@ -27,6 +27,9 @@ SUPPORTED_TYPES = (
 )
 
 _URL_WHITELIST = {GITHUB_URL}
+
+# Static, safe HTML shown in the preview overlay when a file can't be rendered.
+_PREVIEW_ERROR_HTML = '<p class="meta">⚠️ 無法預覽此檔案 / Cannot preview this file</p>'
 
 
 def _read_version():
@@ -149,6 +152,35 @@ _HTML = """<!DOCTYPE html>
       border-radius: 0; text-decoration: underline; cursor: pointer;
     }
     .about-close-row { margin-top: 20px; text-align: center; }
+    /* Markdown preview overlay */
+    #preview-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 110;
+      align-items: center; justify-content: center;
+    }
+    #preview-overlay.visible { display: flex; }
+    .preview-panel {
+      background: white; border-radius: 14px; padding: 0;
+      width: 88%; max-width: 760px; max-height: 82vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0,0,0,.22);
+    }
+    .preview-head {
+      display: flex; justify-content: flex-end; padding: 10px 12px;
+      border-bottom: 1px solid #f2f2f7; flex-shrink: 0;
+    }
+    .preview-body { padding: 18px 24px; overflow: auto; }
+    .preview-body .meta { color: #636366; font-size: 13px; margin: 0 0 12px; }
+    .preview-body h1, .preview-body h2, .preview-body h3,
+    .preview-body h4, .preview-body h5, .preview-body h6 { margin: 14px 0 8px; line-height: 1.3; }
+    .preview-body p, .preview-body li, .preview-body blockquote { font-size: 14px; line-height: 1.6; }
+    .preview-body blockquote { border-left: 3px solid #d1d1d6; margin: 8px 0; padding: 2px 12px; color: #636366; }
+    .preview-body code { background: #f2f2f7; border-radius: 4px; padding: 1px 5px; font-size: 13px; }
+    .preview-body pre { background: #f2f2f7; border-radius: 8px; padding: 12px; overflow: auto; }
+    .preview-body pre code { background: none; padding: 0; }
+    .preview-body table { border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+    .preview-body th, .preview-body td { border: 1px solid #d1d1d6; padding: 5px 10px; text-align: left; }
+    .preview-body th { background: #f2f2f7; }
   </style>
 </head>
 <body>
@@ -223,6 +255,16 @@ _HTML = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Markdown preview overlay -->
+  <div id="preview-overlay">
+    <div class="preview-panel">
+      <div class="preview-head">
+        <button class="btn-secondary" id="btn-preview-close" data-i18n="aboutClose" style="padding:6px 18px">關閉</button>
+      </div>
+      <div class="preview-body" id="preview-body"></div>
+    </div>
+  </div>
+
   <script>
     // ── i18n string table (D2) ─────────────────────────────────────────────
     var STRINGS = {
@@ -240,6 +282,7 @@ _HTML = """<!DOCTYPE html>
         changeFolder: '變更…',
         convert:      '轉換',
         revealInFinder:'在 Finder 顯示',
+        preview:      '預覽',
         preparing:    '準備中…',
         done:         '完成',
         aboutDesc:    '日常文件轉 Markdown · 中文友好 · 表格保留 · 16 種格式',
@@ -262,6 +305,7 @@ _HTML = """<!DOCTYPE html>
         changeFolder: 'Change…',
         convert:      'Convert',
         revealInFinder:'Show in Finder',
+        preview:      'Preview',
         preparing:    'Preparing…',
         done:         'Done',
         aboutDesc:    'Everyday documents → Markdown · CJK-friendly · tables preserved · 16 formats',
@@ -434,7 +478,7 @@ _HTML = """<!DOCTYPE html>
 
     // ── GitHub header button (D5) ──────────────────────────────────────────
     document.getElementById('btn-github').addEventListener('click', function() {
-      pywebview.api.open_url('https://github.com/notoriouslab/doc-cleaner');
+      pywebview.api.open_github();
     });
 
     // ── lang toggle (Manual language toggle) ──────────────────────────────
@@ -455,7 +499,7 @@ _HTML = """<!DOCTYPE html>
       if (e.target === this) this.classList.remove('visible');
     });
     document.getElementById('btn-about-github').addEventListener('click', function() {
-      pywebview.api.open_url('https://github.com/notoriouslab/doc-cleaner');
+      pywebview.api.open_github();
     });
 
     // ── Python-called callbacks ────────────────────────────────────────────
@@ -469,13 +513,25 @@ _HTML = """<!DOCTYPE html>
       var ul = document.getElementById('results');
       var li = document.createElement('li');
       var ok = result.status === 'ok';
+      // Three-way: skipped (no extractable content + actionable hint) is not a
+      // failure — show ⚠️, distinct from a real ❌ error.
+      var icon = ok ? '✅' : (result.status === 'skipped' ? '⚠️' : '❌');
       li.innerHTML =
-        '<span class="icon">' + (ok ? '✅' : '❌') + '</span>' +
+        '<span class="icon">' + icon + '</span>' +
         '<div class="file-info">' +
           '<div class="file-name">' + escHtml(result.file) + '</div>' +
           (result.error ? '<div class="file-err">' + escHtml(result.error) + '</div>' : '') +
         '</div>';
       if (ok && result.output) {
+        var pv = document.createElement('button');
+        pv.className = 'btn-reveal';
+        pv.textContent = STRINGS[_lang].preview;
+        pv.dataset.path = result.output;
+        pv.addEventListener('click', function() {
+          openPreview(this.dataset.path);
+        });
+        li.appendChild(pv);
+
         var btn = document.createElement('button');
         btn.className = 'btn-reveal';
         btn.textContent = STRINGS[_lang].revealInFinder;
@@ -487,6 +543,24 @@ _HTML = """<!DOCTYPE html>
       }
       ul.appendChild(li);
     }
+
+    // ── Markdown preview overlay ───────────────────────────────────────────
+    function openPreview(path) {
+      pywebview.api.preview_markdown(path).then(function(html) {
+        // Trust boundary: `html` is the Python renderer's escaped, whitelisted
+        // output (macapp/mdpreview.py). Intentionally NOT run through escHtml —
+        // re-escaping would show the tags as text. Do not "fix" by wrapping.
+        document.getElementById('preview-body').innerHTML = html;
+        document.getElementById('preview-body').scrollTop = 0;
+        document.getElementById('preview-overlay').classList.add('visible');
+      });
+    }
+    document.getElementById('btn-preview-close').addEventListener('click', function() {
+      document.getElementById('preview-overlay').classList.remove('visible');
+    });
+    document.getElementById('preview-overlay').addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('visible');  // scrim click closes
+    });
 
     function onComplete() {
       document.getElementById('progress-label').textContent = STRINGS[_lang].done;
@@ -557,13 +631,14 @@ class Api:
         return chosen
 
     def _remember_input_dir(self, path):
-        """Persist the parent directory of a picked/dropped source (D2)."""
+        """Persist the directory of a picked/dropped source (D2). A dropped
+        folder is itself the source directory; a file's directory is its parent."""
         try:
-            parent = str(Path(path).parent)
+            directory = str(Path(path) if os.path.isdir(path) else Path(path).parent)
         except (TypeError, ValueError):
             return
-        if parent and parent != self._settings.get("last_input_dir"):
-            self._settings["last_input_dir"] = parent
+        if directory and directory != self._settings.get("last_input_dir"):
+            self._settings["last_input_dir"] = directory
             settings.save(self._settings)
 
     def open_url(self, url):
@@ -571,6 +646,12 @@ class Api:
         if url not in _URL_WHITELIST:
             return
         subprocess.run(["open", url], check=False)
+
+    def open_github(self):
+        """Open the project's GitHub page. Single source of truth for the URL
+        (the front-end no longer hardcodes it), so it can't drift from the
+        open_url allowlist."""
+        self.open_url(GITHUB_URL)
 
     def pick_files(self):
         """Open native file dialog (seeded at the last input dir, D2).
@@ -621,9 +702,9 @@ class Api:
         def _resolver(path):
             if output_mode == "desktop":
                 return desktop
-            if output_mode == "custom":
+            if output_mode == "custom" and custom_dir:  # custom_dir validated above
                 return custom_dir
-            return str(Path(path).parent)
+            return str(Path(path).parent)  # sibling, and defensive fallback
 
         for i, path in enumerate(paths):
             path = str(Path(path).resolve())
@@ -649,8 +730,10 @@ class Api:
         capped = False
         for p in raw:
             if os.path.isdir(p):
-                collected = cleaner.collect_files(p, recursive=True)
-                if len(collected) >= cleaner.MAX_RECURSIVE_FILES:
+                # Use the recursive collector's accurate capped flag (not a
+                # len()>=cap heuristic, which false-positives at exactly the cap).
+                collected, was_capped = cleaner._collect_dir_recursive(p, os.path.realpath(p))
+                if was_capped:
                     capped = True
                 expanded.extend(collected)
             elif os.path.isfile(p):
@@ -675,6 +758,25 @@ class Api:
         """Reveal file in platform file manager."""
         from parsers._platform import reveal_in_file_manager
         reveal_in_file_manager(path)
+
+    def preview_markdown(self, path):
+        """Read a produced .md and return safe rendered HTML for the preview
+        overlay (D5). Path-checked (absolute, existing regular file) and
+        size-capped before reading; never raises — returns an escaped error
+        message string on any failure."""
+        try:
+            if not path or not os.path.isabs(path):
+                return _PREVIEW_ERROR_HTML
+            real = os.path.realpath(path)
+            if not os.path.isfile(real):
+                return _PREVIEW_ERROR_HTML
+            if os.path.getsize(real) > mdpreview.MAX_PREVIEW_BYTES:
+                return _PREVIEW_ERROR_HTML
+            with open(real, "r", encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+            return mdpreview.render(text)
+        except Exception:
+            return _PREVIEW_ERROR_HTML
 
 
 def main():

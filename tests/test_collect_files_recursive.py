@@ -81,3 +81,16 @@ def test_cap_enforced_and_warns(tmp_path, monkeypatch, caplog):
 
     assert len(result) == 3  # exactly the cap
     assert any("capped" in rec.message.lower() for rec in caplog.records)
+
+
+def test_capped_flag_exactly_at_cap_is_false(tmp_path, monkeypatch):
+    # Exactly MAX files → NOT capped (no false positive); MAX+1 → capped.
+    monkeypatch.setattr(cleaner, "MAX_RECURSIVE_FILES", 3)
+    for i in range(3):
+        _touch(tmp_path / f"f{i}.md")
+    files, capped = cleaner._collect_dir_recursive(str(tmp_path), os.path.realpath(str(tmp_path)))
+    assert len(files) == 3 and capped is False
+
+    _touch(tmp_path / "extra.md")  # now 4 > cap
+    files, capped = cleaner._collect_dir_recursive(str(tmp_path), os.path.realpath(str(tmp_path)))
+    assert len(files) == 3 and capped is True

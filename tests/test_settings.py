@@ -98,6 +98,19 @@ def test_empty_object_returns_defaults(data_dir):
     assert settings.load() == settings.DEFAULTS
 
 
+def test_type_confused_value_does_not_raise(data_dir):
+    # A value of an unhashable type (dict/list) for output_mode must NOT raise
+    # (regression: `value in set` would TypeError on unhashable) — defaults instead.
+    data_dir.mkdir(parents=True)
+    (data_dir / "settings.json").write_text(
+        json.dumps({"output_mode": {"nested": 1}, "last_input_dir": ["a", "b"]}),
+        encoding="utf-8",
+    )
+    loaded = settings.load()  # must not raise
+    assert loaded["output_mode"] == "sibling"
+    assert loaded["last_input_dir"] is None
+
+
 def test_app_data_dir_is_platform_path():
     # Smoke check: returns a non-empty path ending in the app name.
     p = settings.app_data_dir()

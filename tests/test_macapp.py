@@ -418,3 +418,82 @@ class TestRecursiveDropExpansion:
         assert len(result) == 2
         assert any("onNotice('cap'" in str(c)
                    for c in api._window.evaluate_js.call_args_list)
+
+    def test_exactly_cap_does_not_fire_notice(self, tmp_path, monkeypatch):
+        # exactly MAX files loaded fully → NO "capped" notice (no false positive)
+        import cleaner
+        monkeypatch.setattr(cleaner, "MAX_RECURSIVE_FILES", 2)
+        for i in range(2):
+            (tmp_path / f"f{i}.md").write_text("x", encoding="utf-8")
+        api = _make_api()
+        self._set_dnd([str(tmp_path)])
+        result = api.get_dropped_paths()
+        assert len(result) == 2
+        assert not any("onNotice('cap'" in str(c)
+                       for c in api._window.evaluate_js.call_args_list)
+
+    def test_dropped_folder_remembers_folder_itself(self, tmp_path):
+        # last_input_dir for a dropped FOLDER is the folder itself, not its parent
+        folder = tmp_path / "src"
+        (folder).mkdir()
+        (folder / "a.md").write_text("x", encoding="utf-8")
+        api = _make_api()
+        self._set_dnd([str(folder)])
+        api.get_dropped_paths()
+        assert api.get_prefs()["last_input_dir"] == str(folder)
+
+
+# ── Markdown preview bridge (add-markdown-preview) ───────────────────────────
+
+class TestPreviewMarkdown:
+    def test_renders_real_md(self, tmp_path):
+        md = tmp_path / "doc.md"
+        md.write_text("# Title\n\nHello **world**.", encoding="utf-8")
+        api = _make_api()
+        html = api.preview_markdown(str(md))
+        assert "<h1>Title</h1>" in html
+        assert "<strong>world</strong>" in html
+
+    def test_missing_path_returns_error(self, tmp_path):
+        api = _make_api()
+        out = api.preview_markdown(str(tmp_path / "nope.md"))
+        assert "Cannot preview" in out  # escaped error, no raise
+
+    def test_relative_path_returns_error(self):
+        api = _make_api()
+        out = api.preview_markdown("relative/path.md")
+        assert "Cannot preview" in out
+
+    def test_directory_path_returns_error(self, tmp_path):
+        api = _make_api()
+        out = api.preview_markdown(str(tmp_path))
+        assert "Cannot preview" in out
+
+    def test_oversize_returns_error(self, tmp_path, monkeypatch):
+        import macapp.mdpreview as mp
+        monkeypatch.setattr(mp, "MAX_PREVIEW_BYTES", 10)
+        big = tmp_path / "big.md"
+        big.write_text("x" * 100, encoding="utf-8")
+        api = _make_api()
+        out = api.preview_markdown(str(big))
+        assert "Cannot preview" in out
+
+    def test_never_raises_on_garbage(self, tmp_path):
+        # binary garbage decoded with errors=replace must still render, not raise
+        f = tmp_path / "g.md"
+        f.write_bytes(b"\xff\xfe\x00 not utf8 \x80")
+        api = _make_api()
+        out = api.preview_markdown(str(f))
+        assert isinstance(out, str)  # produced something, no exception
+
+
+class TestOpenGithub:
+    def test_open_github_uses_constant(self):
+        import macapp.app as appmod
+        api = _make_api()
+        with patch("macapp.app.subprocess.run") as run:
+            api.open_github()
+        # opened exactly the whitelisted GITHUB_URL (no JS-side literal to drift)
+        run.assert_called_once()
+        args = run.call_args[0][0]
+        assert args == ["open", appmod.GITHUB_URL]

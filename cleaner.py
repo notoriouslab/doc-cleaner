@@ -537,7 +537,9 @@ def _collect_dir_recursive(input_path, real_root):
     Preserves the symlink-escape guard (a file's resolved path must stay under
     the directory root), does not follow symlinked subdirectories
     (``followlinks=False``), traverses deterministically (sorted), and stops at
-    ``MAX_RECURSIVE_FILES`` — logging a warning when the cap is reached.
+    ``MAX_RECURSIVE_FILES``. Returns ``(files, capped)`` where ``capped`` is True
+    only when MORE than the cap existed (so exactly-cap files is not a false
+    positive). Collects one past the cap to distinguish the two cases.
     """
     files = []
     capped = False
@@ -552,17 +554,18 @@ def _collect_dir_recursive(input_path, real_root):
                 logger.warning(f"Skipping symlink escape: {name}")
                 continue
             files.append(fp)
-            if len(files) >= MAX_RECURSIVE_FILES:
+            if len(files) > MAX_RECURSIVE_FILES:  # collected cap+1 → truly more exist
                 capped = True
                 break
         if capped:
             break
     if capped:
+        files = files[:MAX_RECURSIVE_FILES]
         logger.warning(
             f"Recursive scan capped at {MAX_RECURSIVE_FILES} files; "
             "additional files were not collected"
         )
-    return files
+    return files, capped
 
 
 def collect_files(input_path, recursive=False):
@@ -588,7 +591,8 @@ def collect_files(input_path, recursive=False):
     if os.path.isdir(input_path):
         real_root = os.path.realpath(input_path)
         if recursive:
-            return _collect_dir_recursive(input_path, real_root)
+            # Drop the capped flag so the CLI return type stays a plain list.
+            return _collect_dir_recursive(input_path, real_root)[0]
         files = []
         skipped_dirs = []
         for f in sorted(os.listdir(input_path)):

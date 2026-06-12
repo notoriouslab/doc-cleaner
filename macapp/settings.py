@@ -52,7 +52,9 @@ def _valid(key, value):
     if key == "version":
         return isinstance(value, int)
     if key == "output_mode":
-        return value in _VALID_OUTPUT_MODES
+        # isinstance guard first: a non-str (e.g. dict/list) value would make
+        # `value in <set>` raise TypeError (unhashable). Short-circuit instead.
+        return isinstance(value, str) and value in _VALID_OUTPUT_MODES
     if key in ("custom_output_dir", "last_input_dir"):
         return value is None or isinstance(value, str)
     return False
@@ -91,11 +93,17 @@ def load():
         logger.warning("Settings root is not an object; using defaults")
         return result
 
-    for key in DEFAULTS:
-        if key in stored and _valid(key, stored[key]):
-            result[key] = stored[key]
-        elif key in stored:
-            logger.warning("Ignoring invalid settings value for %r; using default", key)
+    # Defense in depth: validation must honor the never-raise contract even if
+    # a value has an unexpected type — fall back to defaults for the bad key.
+    try:
+        for key in DEFAULTS:
+            if key in stored and _valid(key, stored[key]):
+                result[key] = stored[key]
+            elif key in stored:
+                logger.warning("Ignoring invalid settings value for %r; using default", key)
+    except Exception as exc:  # pragma: no cover — _valid is already type-safe
+        logger.warning("Settings validation failed (%s); using defaults", exc)
+        return dict(DEFAULTS)
     return result
 
 
