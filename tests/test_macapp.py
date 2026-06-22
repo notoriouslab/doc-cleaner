@@ -88,7 +88,7 @@ class TestConvertBackgroundThread:
         started = threading.Event()
         finished = threading.Event()
 
-        def _slow_batch(paths, mode, custom_dir=None):
+        def _slow_batch(paths, mode, custom_dir=None, output_format="md"):
             started.set()
             finished.wait(timeout=5)
 
@@ -363,7 +363,7 @@ class TestCustomOutputResolver:
         captured = {}
         with patch("macapp.app._core._build_env", return_value=({}, None, "")), \
              patch("macapp.app._core._run_one",
-                   side_effect=lambda p, ab, pr, cfg, od: captured.setdefault("od", od) or {"file": "x", "status": "ok", "output": None, "error": None}):
+                   side_effect=lambda p, ab, pr, cfg, od, **kwargs: captured.setdefault("od", od) or {"file": "x", "status": "ok", "output": None, "error": None}):
             api._run_batch([str(src / "a.docx")], "custom", str(out))
         assert captured["od"] == str(out)
 
@@ -374,7 +374,7 @@ class TestCustomOutputResolver:
         captured = {}
         with patch("macapp.app._core._build_env", return_value=({}, None, "")), \
              patch("macapp.app._core._run_one",
-                   side_effect=lambda p, ab, pr, cfg, od: captured.setdefault("od", od) or {"file": "x", "status": "ok", "output": None, "error": None}):
+                   side_effect=lambda p, ab, pr, cfg, od, **kwargs: captured.setdefault("od", od) or {"file": "x", "status": "ok", "output": None, "error": None}):
             api._run_batch([str(src)], "custom", gone)
         # fell back to sibling (parent of source), and pushed the fallback notice
         assert captured["od"] == str(tmp_path)
@@ -489,11 +489,17 @@ class TestPreviewMarkdown:
 
 class TestOpenGithub:
     def test_open_github_uses_constant(self):
+        import sys
         import macapp.app as appmod
         api = _make_api()
-        with patch("macapp.app.subprocess.run") as run:
-            api.open_github()
-        # opened exactly the whitelisted GITHUB_URL (no JS-side literal to drift)
-        run.assert_called_once()
-        args = run.call_args[0][0]
-        assert args == ["open", appmod.GITHUB_URL]
+        if sys.platform == "win32":
+            with patch("macapp.app.os.startfile") as startfile:
+                api.open_github()
+            startfile.assert_called_once_with(appmod.GITHUB_URL)
+        else:
+            with patch("macapp.app.subprocess.run") as run:
+                api.open_github()
+            run.assert_called_once()
+            args = run.call_args[0][0]
+            expected_cmd = "open" if sys.platform == "darwin" else "xdg-open"
+            assert args == [expected_cmd, appmod.GITHUB_URL]
