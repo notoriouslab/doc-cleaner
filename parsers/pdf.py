@@ -319,10 +319,15 @@ class _TablePart:
 
     ``header`` never contains None — span-covered header cells resolve to "".
     ``rows`` may contain None for span-covered data cells (rendered blank).
+    ``x0``/``x1``/``y1`` carry the table bbox for fragment stitching; the
+    zero defaults mean "no geometry" and such parts are never stitched.
     """
     y: float
     header: list = field(default_factory=list)
     rows: list = field(default_factory=list)
+    x0: float = 0.0
+    x1: float = 0.0
+    y1: float = 0.0
 
 
 def _table_to_markdown(rows, external_header=None):
@@ -362,6 +367,55 @@ def _table_to_markdown(rows, external_header=None):
     lines = [header_line, "|" + "|".join(["---"] * width) + "|"]
     lines += [render_row(r) for r in data]
     return "\n".join(lines)
+
+
+# Fragment stitching thresholds, pinned to real-statement measurements
+# (see change stitch-table-fragments notes): intra-table x drift ≤ 0.4 pt,
+# fragment gaps 12.6–25.2 pt; nearest false-merge candidates sit at gap
+# 14.3 pt (blocked by the multi-row test) and 5.5 pt (blocked by column count).
+_STITCH_X_TOL = 6.0
+_STITCH_GAP_MAX = 30.0
+
+
+def _stitch_page_fragments(parts):
+    """
+    Consolidate same-page single-row table fragments into their preceding
+    compatible table.
+
+    find_tables sometimes boxes every row of a statement table individually;
+    each such fragment surfaces as a degenerate _TablePart whose only row sits
+    in the header position (rows == []). A fragment B stitches into the
+    immediately preceding table A iff: no text part lies between them, both
+    have the same column count, max(|Δx0|, |Δx1|) <= _STITCH_X_TOL, the
+    vertical gap (B.y - A.y1) <= _STITCH_GAP_MAX, and B is degenerate.
+    B's header row becomes a data row of A; the chain extends (later
+    fragments compare against the stitched result). Pure: inputs are never
+    mutated — stitched tables are new _TablePart instances.
+    """
+    out = []
+    prev_idx = None   # index in `out` of the directly preceding table part
+    for part in parts:
+        if not isinstance(part, _TablePart):
+            out.append(part)
+            prev_idx = None   # real text breaks the chain
+            continue
+        if prev_idx is not None:
+            a = out[prev_idx]
+            stitchable = (
+                len(part.rows) == 0
+                and len(part.header) == len(a.header)
+                and a.x1 > 0.0 and part.x1 > 0.0   # both carry real geometry
+                and max(abs(part.x0 - a.x0), abs(part.x1 - a.x1)) <= _STITCH_X_TOL
+                and (part.y - a.y1) <= _STITCH_GAP_MAX
+            )
+            if stitchable:
+                out[prev_idx] = _TablePart(
+                    a.y, a.header, list(a.rows) + [list(part.header)],
+                    x0=a.x0, x1=a.x1, y1=part.y1)
+                continue
+        out.append(part)
+        prev_idx = len(out) - 1
+    return out
 
 
 def _merge_cross_page_tables(pages):
@@ -421,7 +475,7 @@ def extract_text_with_tables(filepath):
         pages = []
         with fitz.open(filepath) as doc:
             for page in doc:
-                pages.append(_extract_page_text_with_tables(page))
+                pages.append(_stitch_page_fragments(_extract_page_text_with_tables(page)))
         rendered = []
         for part in _merge_cross_page_tables(pages):
             if isinstance(part, _TablePart):
@@ -461,7 +515,9 @@ def _extract_page_text_with_tables(page):
                 header, data = extracted[0], extracted[1:]
             else:
                 continue   # nothing extractable — leave the region's text alone
-            parts.append(_TablePart(tbl.bbox[1], [_cell_text(c) for c in header], data))
+            bx0, by0, bx1, by1 = tbl.bbox
+            parts.append(_TablePart(by0, [_cell_text(c) for c in header], data,
+                                    x0=bx0, x1=bx1, y1=by1))
             # Suppress overlapping text blocks only for tables actually emitted
             table_rects.append(fitz.Rect(tbl.bbox))
             if header_obj.external:
