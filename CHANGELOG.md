@@ -1,11 +1,18 @@
 # Changelog
 
-## v1.7.0 (unreleased)
+## v1.7.0
 
 ### New Features
 
 - **EPUB output** (contributed by @stormchen in #5): choose Markdown, EPUB e-book, or both — `-f/--format {md,epub,both}` in the CLI and a format selector in the GUI (remembered across launches). Generated EPUBs are standards-conformant EPUB 3 files built with a zero-dependency renderer
 - **Windows GUI improvements** (also from #5): Chinese UI now auto-detects Windows CJK locales, the language toggle is available on Windows, and links open via the native handler
+
+### Table Extraction Overhaul (driven by real-statement testing)
+
+- **PDF routing**: table-bearing PDFs now always use the built-in table path — a fast first-party scan decides, so ODL-equipped (Java) machines no longer route statements through ODL's table detection, which collapsed multi-column layouts into single `<br>`-joined cells; prose PDFs keep ODL's layout reconstruction, and `<br>` tags are stripped from remaining ODL output
+- **Fragment stitching**: statements whose rows are detected as dozens of independent single-row tables (54 fragments in one credit-card statement) are stitched back into consolidated tables with their real headers
+- **Collapsed-row rebuild**: tables with gridlines only around the header (securities holdings) regain their real columns — each collapsed row's words are re-bucketed into the header's measured column boundaries (15/15 stock rows restored to 12 columns)
+- **Language preference**: the GUI's manual language toggle now persists across launches (auto-detection remains the default until first toggled)
 
 ### Bug Fixes (integration hardening)
 
