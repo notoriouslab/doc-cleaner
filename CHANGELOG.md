@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.6.1
+
+### Bug Fixes
+
+- **PDF tables — merged cells**: text spanning multiple rows/columns now appears once (first cell of the span, remaining cells blank) instead of being repeated into every covered cell
+- **PDF tables — cross-page data loss**: a table continuing across pages with repeated headers now merges into one continuous table with a single header; previously every continuation page was silently dropped (a 60-row table lost 23 rows)
+- **PDF tables — robustness**: `|` and `\` inside cells are escaped so they can no longer corrupt the table structure; degenerate (zero-content) table detections no longer swallow the text under them or knock the whole page down to plain text
+- **All table formats**: DOCX / PPTX / XLSX / Numbers now share one cell-escaping implementation — pipes, backslashes, and line breaks inside cells can no longer break table columns or split a row across lines (XLSX multi-line cells previously misaligned the whole sheet)
+- **DOCX**: line breaks inside table cells are preserved as spaces (adjacent lines were concatenated without a boundary)
+- **In-app preview**: table cells containing escaped pipes render as one cell instead of splitting
+
+### Notes
+
+- No new dependencies; no packaging changes. ODL-equipped environments (Java) are unaffected — these fixes target the built-in extraction path that packaged apps use by default.
+
 ## v1.6.0
 
 ### New Features

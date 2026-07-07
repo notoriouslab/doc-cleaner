@@ -1,4 +1,4 @@
-Doc Cleaner v1.6.0
+Doc Cleaner v1.6.1
 ==================
 
 文件清洗工具——將各種文件轉換為 Markdown 格式。
@@ -67,7 +67,7 @@ Doc Cleaner v1.6.0
 ====================================================================
 
 
-Doc Cleaner v1.6.0
+Doc Cleaner v1.6.1
 ==================
 
 A document-cleaning tool — converts various documents to Markdown.
