@@ -109,9 +109,32 @@ def mixed_content():
     ])
 
 
+def header_grid_only():
+    """Header row fully gridlined; body rows have only horizontal rules —
+    reproduces the statement layout whose body rows collapse into one cell
+    (proven recipe: BOX + header GRID + LINEBELOW)."""
+    data = [
+        ["類別", "代號", "名稱", "數量", "金額"],
+        ["現股", "2330", "台積電", "1,000", "580,000"],
+        ["現股", "0050", "元大台灣50", "2,000", "270,000"],
+        ["小計標題列跨全寬置中", "", "", "", ""],
+    ]
+    table = Table(data, colWidths=[70, 70, 120, 80, 90])
+    table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.black),
+        ("GRID", (0, 0), (-1, 0), 0.5, colors.black),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.5, colors.black),
+        CJK_FONT,
+        ("SPAN", (0, 3), (-1, 3)),
+        ("ALIGN", (0, 3), (-1, 3), "CENTER"),
+    ]))
+    _build("header_grid_only.pdf", [table])
+
+
 if __name__ == "__main__":
     merged_cells()
     crosspage_repeated_header()
     special_chars()
     no_header()
     mixed_content()
+    header_grid_only()

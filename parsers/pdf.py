@@ -369,6 +369,73 @@ def _table_to_markdown(rows, external_header=None):
     return "\n".join(lines)
 
 
+def _bucket_words_into_columns(words, boundaries):
+    """
+    Rebuild a collapsed table row: assign words to column x-ranges.
+
+    ``words``: iterables shaped like page.get_text("words") output —
+    (x0, y0, x1, y1, text, ...) with trailing fields tolerated.
+    ``boundaries``: non-empty list of (x0, x1) column ranges in reading order.
+
+    Always returns exactly len(boundaries) strings. A word joins the range
+    containing its x-center, or the nearest range when outside all (with a
+    single boundary both rules collapse to index 0). Words are sorted by
+    (y0, x0) so wrapped continuation lines land after their first line.
+    """
+    cells = [[] for _ in boundaries]
+    for word in sorted(words, key=lambda t: (t[1], t[0])):
+        wx = (word[0] + word[2]) / 2
+        hit = next((i for i, (bx0, bx1) in enumerate(boundaries)
+                    if bx0 <= wx < bx1), None)
+        if hit is None:
+            dists = [min(abs(wx - bx0), abs(wx - bx1)) for bx0, bx1 in boundaries]
+            hit = dists.index(min(dists))
+        cells[hit].append(str(word[4]))
+    return [" ".join(c) for c in cells]
+
+
+def _rebuild_collapsed_rows(page, tbl, extracted):
+    """
+    Repair rows that collapsed into a single cell, using the table's own
+    measured column boundaries (the row with the most non-None cell bboxes).
+
+    Returns a repaired copy of ``extracted`` (index-aligned with tbl.rows);
+    a row is replaced only when its rebuild yields >= 2 non-empty cells,
+    so full-width titles keep their original first-cell form. Rebuilt cells
+    map back to full col_count width via the boundary row's non-None cell
+    indices (positions without a boundary get None). Any failure keeps the
+    table's unrepaired rows (never worse than today).
+    """
+    try:
+        rows = tbl.rows
+        if len(rows) != len(extracted):
+            return extracted   # alignment assumption violated — fail open
+        boundary_row = max(rows, key=lambda r: sum(1 for c in r.cells if c))
+        idx_and_cells = [(i, c) for i, c in enumerate(boundary_row.cells) if c]
+        if len(idx_and_cells) < 2:
+            return extracted   # no usable boundary source
+        col_indices = [i for i, _ in idx_and_cells]
+        boundaries = [(c[0], c[2]) for _, c in idx_and_cells]
+        col_count = len(boundary_row.cells)
+
+        repaired = list(extracted)
+        for i, row in enumerate(rows):
+            if sum(1 for c in row.cells if c) > 1:
+                continue   # row has real cell structure — not collapsed
+            words = page.get_text("words", clip=fitz.Rect(*row.bbox))
+            rebuilt = _bucket_words_into_columns(words, boundaries)
+            if sum(1 for c in rebuilt if c) < 2:
+                continue   # full-width title etc. — keep original form
+            full = [None] * col_count
+            for pos, text in zip(col_indices, rebuilt):
+                full[pos] = text if text else None
+            repaired[i] = full
+        return repaired
+    except Exception as e:
+        logger.debug(f"Collapsed-row rebuild skipped: {e}")
+        return extracted
+
+
 # Fragment stitching thresholds, pinned to real-statement measurements
 # (see change stitch-table-fragments notes): intra-table x drift ≤ 0.4 pt,
 # fragment gaps 12.6–25.2 pt; nearest false-merge candidates sit at gap
@@ -509,6 +576,8 @@ def _extract_page_text_with_tables(page):
             if header_obj is None:   # zero-row table: nothing to render
                 continue
             extracted = tbl.extract() or []
+            if extracted:
+                extracted = _rebuild_collapsed_rows(page, tbl, extracted)
             if header_obj.external and header_obj.names:
                 header, data = header_obj.names, extracted
             elif extracted:
