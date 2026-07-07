@@ -102,7 +102,7 @@ python cleaner.py --input ./documents/ --dry-run --verbose
 
 ### Optional Advanced Install
 
-High-quality PDF table extraction, decryption, PPTX/DXF support, etc.:
+High-quality PDF table extraction, decryption, PPTX/DXF/EPUB support, etc.:
 
 ```bash
 # High-quality PDF extraction (recommended)
@@ -114,8 +114,8 @@ pip install pdf2image                     # Also requires: brew install poppler
 # PDF decryption
 pip install pikepdf
 
-# Extra formats (PPTX / DXF)
-pip install python-pptx ezdxf
+# Extra formats (PPTX / DXF / EPUB typesetting)
+pip install python-pptx ezdxf markdown
 ```
 
 Set API keys (if using cloud backend):
@@ -123,6 +123,7 @@ Set API keys (if using cloud backend):
 cp config.example.json config.json
 cp .env.example .env
 # Edit .env with GEMINI_API_KEY or GROQ_API_KEY
+```
 ```
 
 ---
@@ -205,6 +206,7 @@ python cleaner.py [options]
   --ai              gemini | groq | ollama | none (default: config or gemini)
   --password        PDF decryption password (overrides .env and config)
   --summary         Output JSON summary to stdout (for scripts/agents)
+  --format, -f      Output format: md (default) | epub | both (both Markdown and EPUB)
   --dry-run         Preview without writing
   --verbose         Debug logging
   --version         Version info
