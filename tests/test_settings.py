@@ -22,6 +22,7 @@ def test_defaults_shape():
         "output_mode": "sibling",
         "custom_output_dir": None,
         "last_input_dir": None,
+        "output_format": "md",
     }
 
 
@@ -115,3 +116,23 @@ def test_app_data_dir_is_platform_path():
     # Smoke check: returns a non-empty path ending in the app name.
     p = settings.app_data_dir()
     assert p.endswith("Doc Cleaner")
+
+
+def test_output_format_default_is_md(data_dir):
+    assert settings.load()["output_format"] == "md"
+
+
+def test_output_format_round_trip(data_dir):
+    for fmt in ("epub", "both", "md"):
+        data = settings.load()
+        data["output_format"] = fmt
+        settings.save(data)
+        assert settings.load()["output_format"] == fmt
+
+
+def test_output_format_corrupt_values_fall_back(data_dir):
+    data_dir.mkdir(parents=True, exist_ok=True)
+    for bad in (123, "pdf", None, ["md"], {"v": "epub"}, "", "MD", "Epub"):
+        (data_dir / settings.SETTINGS_FILENAME).write_text(
+            json.dumps({"version": 1, "output_format": bad}), encoding="utf-8")
+        assert settings.load()["output_format"] == "md"

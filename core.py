@@ -34,7 +34,7 @@ def _build_env(ai="none", config_path=None):
     return config, ai_backend, prompt
 
 
-def _run_one(filepath, ai_backend, prompt, config, output_dir, dry_run=False):
+def _run_one(filepath, ai_backend, prompt, config, output_dir, output_format="md", dry_run=False):
     """
     Call process_file and return a GUI-shaped result dict.
     Attaches to doc-cleaner, parsers, and classifiers loggers to capture
@@ -50,7 +50,7 @@ def _run_one(filepath, ai_backend, prompt, config, output_dir, dry_run=False):
         _log.addHandler(capture)
     try:
         status_raw, out_path = process_file(
-            filepath, ai_backend, prompt, config, output_dir, dry_run=dry_run
+            filepath, ai_backend, prompt, config, output_dir, output_format=output_format, dry_run=dry_run
         )
     finally:
         for _log in _watched:
@@ -71,16 +71,22 @@ def _run_one(filepath, ai_backend, prompt, config, output_dir, dry_run=False):
     else:
         error_msg = None
 
+    output = str(Path(out_path).resolve()) if out_path else None
+    # Preview target: only Markdown can be previewed. For md/both the primary
+    # path process_file returns IS the written .md (epub-only never writes one),
+    # so this derives locally with no process_file interface change.
+    preview = output if (status == "ok" and output_format in ("md", "both")) else None
     return {
         "file": Path(filepath).name,
         "input": str(Path(filepath).resolve()),
-        "output": str(Path(out_path).resolve()) if out_path else None,
+        "output": output,
+        "preview": preview,
         "status": status,
         "error": error_msg,
     }
 
 
-def convert_file(input_path, output_dir=None, ai="none"):
+def convert_file(input_path, output_dir=None, ai="none", output_format="md"):
     """
     Convert a single file. Loads config, builds backend, runs extraction.
 
@@ -92,10 +98,10 @@ def convert_file(input_path, output_dir=None, ai="none"):
     if output_dir is None:
         output_dir = str(Path(input_path).parent)
     config, ai_backend, prompt = _build_env(ai=ai)
-    return _run_one(input_path, ai_backend, prompt, config, output_dir)
+    return _run_one(input_path, ai_backend, prompt, config, output_dir, output_format=output_format)
 
 
-def convert_files(paths, output_resolver=None, ai="none", config=None, config_path=None, dry_run=False):
+def convert_files(paths, output_resolver=None, ai="none", output_format="md", config=None, config_path=None, dry_run=False):
     """
     Batch conversion. Builds config + backend + prompt once, reuses across all files.
     Continues past failing files — one error never aborts the batch.
@@ -119,5 +125,5 @@ def convert_files(paths, output_resolver=None, ai="none", config=None, config_pa
     for path in paths:
         path = str(Path(path).resolve())
         output_dir = output_resolver(path) if output_resolver else str(Path(path).parent)
-        results.append(_run_one(path, ai_backend, prompt, config, output_dir, dry_run=dry_run))
+        results.append(_run_one(path, ai_backend, prompt, config, output_dir, output_format=output_format, dry_run=dry_run))
     return results

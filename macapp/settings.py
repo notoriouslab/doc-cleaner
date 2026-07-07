@@ -41,11 +41,13 @@ DEFAULTS = {
     "output_mode": "sibling",
     "custom_output_dir": None,
     "last_input_dir": None,
+    "output_format": "md",
 }
 
 # Per-key validators: a stored value is accepted only if it passes, else the
 # default for that key is used (never raises).
 _VALID_OUTPUT_MODES = {"sibling", "desktop", "custom"}
+_VALID_OUTPUT_FORMATS = {"md", "epub", "both"}
 
 
 def _valid(key, value):
@@ -55,6 +57,8 @@ def _valid(key, value):
         # isinstance guard first: a non-str (e.g. dict/list) value would make
         # `value in <set>` raise TypeError (unhashable). Short-circuit instead.
         return isinstance(value, str) and value in _VALID_OUTPUT_MODES
+    if key == "output_format":
+        return isinstance(value, str) and value in _VALID_OUTPUT_FORMATS
     if key in ("custom_output_dir", "last_input_dir"):
         return value is None or isinstance(value, str)
     return False

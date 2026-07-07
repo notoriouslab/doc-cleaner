@@ -44,11 +44,13 @@ def _read_version():
 
 
 def _detect_lang():
-    """Detect system locale; return 'zh' for zh-* locales, else 'en'."""
+    """Detect system locale; return 'zh' for zh-* or Chinese locales, else 'en'."""
     try:
         loc, _ = locale.getlocale()
-        if loc and loc.lower().startswith("zh"):
-            return "zh"
+        if loc:
+            loc_lower = loc.lower()
+            if loc_lower.startswith("zh") or "chinese" in loc_lower:
+                return "zh"
     except Exception:
         pass
     return "en"
@@ -222,6 +224,15 @@ _HTML = """<!DOCTYPE html>
   </div>
 
   <div class="card">
+    <div class="output-mode">
+      <span data-i18n="formatLabel">輸出格式：</span>
+      <label><input type="radio" name="format" value="md" checked> <span data-i18n="formatMd">Markdown (.md)</span></label>
+      <label><input type="radio" name="format" value="epub"> <span data-i18n="formatEpub">EPUB 電子書 (.epub)</span></label>
+      <label><input type="radio" name="format" value="both"> <span data-i18n="formatBoth">雙格式 (.md + .epub)</span></label>
+    </div>
+  </div>
+
+  <div class="card">
     <div id="progress-label"></div>
     <ul id="results"></ul>
   </div>
@@ -280,6 +291,10 @@ _HTML = """<!DOCTYPE html>
         outputDesktop:'桌面',
         outputCustom: '選擇資料夾…',
         changeFolder: '變更…',
+        formatLabel:  '輸出格式：',
+        formatMd:     'Markdown (.md)',
+        formatEpub:   'EPUB 電子書 (.epub)',
+        formatBoth:   '雙格式 (.md + .epub)',
         convert:      '轉換',
         revealInFinder:'在 Finder 顯示',
         preview:      '預覽',
@@ -303,6 +318,10 @@ _HTML = """<!DOCTYPE html>
         outputDesktop:'Desktop',
         outputCustom: 'Choose folder…',
         changeFolder: 'Change…',
+        formatLabel:  'Format:',
+        formatMd:     'Markdown (.md)',
+        formatEpub:   'EPUB E-book (.epub)',
+        formatBoth:   'Both (.md + .epub)',
         convert:      'Convert',
         revealInFinder:'Show in Finder',
         preview:      'Preview',
@@ -334,9 +353,9 @@ _HTML = """<!DOCTYPE html>
     }
 
     // ── init — called from Python after page loads ──────────────────────────
-    function init(langCode, isMacos) {
+    function init(langCode, showLangToggle) {
       setLang(langCode);
-      if (isMacos) {
+      if (showLangToggle) {
         document.getElementById('btn-lang').style.display = '';
       }
       // Pre-fetch app info for About overlay
@@ -353,6 +372,10 @@ _HTML = """<!DOCTYPE html>
         showCustomDir();
         document.getElementById('custom-dir-row').style.display =
           (mode === 'custom') ? '' : 'none';
+
+        var fmt = prefs.output_format || 'md';
+        var fmtRadio = document.querySelector('input[name=format][value=' + fmt + ']');
+        if (fmtRadio) fmtRadio.checked = true;
       });
     }
 
@@ -461,6 +484,12 @@ _HTML = """<!DOCTYPE html>
       });
     });
 
+    document.querySelectorAll('input[name=format]').forEach(function(r) {
+      r.addEventListener('change', function() {
+        pywebview.api.set_output_format(this.value);
+      });
+    });
+
     // "變更…" — re-open the folder picker to change an already-chosen folder.
     document.getElementById('btn-change-folder').addEventListener('click', function() {
       chooseOutputFolder();
@@ -469,11 +498,12 @@ _HTML = """<!DOCTYPE html>
     // ── convert ────────────────────────────────────────────────────────────
     document.getElementById('btn-convert').addEventListener('click', function() {
       var mode = document.querySelector('input[name=mode]:checked').value;
+      var format = document.querySelector('input[name=format]:checked').value;
       document.getElementById('results').innerHTML = '';
       document.getElementById('progress-label').textContent = STRINGS[_lang].preparing;
       document.getElementById('btn-convert').disabled = true;
       document.getElementById('btn-pick').disabled = true;
-      pywebview.api.convert(selectedPaths, mode, (mode === 'custom') ? customDir : null);
+      pywebview.api.convert(selectedPaths, mode, (mode === 'custom') ? customDir : null, format);
     });
 
     // ── GitHub header button (D5) ──────────────────────────────────────────
@@ -522,16 +552,19 @@ _HTML = """<!DOCTYPE html>
           '<div class="file-name">' + escHtml(result.file) + '</div>' +
           (result.error ? '<div class="file-err">' + escHtml(result.error) + '</div>' : '') +
         '</div>';
-      if (ok && result.output) {
+      if (ok && result.preview) {
+        // Only Markdown outputs are previewable — epub-only results carry
+        // preview=null and get no preview button.
         var pv = document.createElement('button');
         pv.className = 'btn-reveal';
         pv.textContent = STRINGS[_lang].preview;
-        pv.dataset.path = result.output;
+        pv.dataset.path = result.preview;
         pv.addEventListener('click', function() {
           openPreview(this.dataset.path);
         });
         li.appendChild(pv);
-
+      }
+      if (ok && result.output) {
         var btn = document.createElement('button');
         btn.className = 'btn-reveal';
         btn.textContent = STRINGS[_lang].revealInFinder;
@@ -606,11 +639,17 @@ class Api:
             "output_mode": self._settings.get("output_mode", "sibling"),
             "custom_output_dir": self._settings.get("custom_output_dir"),
             "last_input_dir": self._settings.get("last_input_dir"),
+            "output_format": self._settings.get("output_format", "md"),
         }
 
     def set_output_mode(self, mode):
         """Persist the chosen output mode (sibling/desktop/custom)."""
         self._settings["output_mode"] = mode
+        settings.save(self._settings)
+
+    def set_output_format(self, format_val):
+        """Persist the chosen output format (md/epub/both)."""
+        self._settings["output_format"] = format_val
         settings.save(self._settings)
 
     def pick_output_folder(self):
@@ -645,7 +684,12 @@ class Api:
         """Open URL in system browser (D5). Silently rejects unlisted URLs."""
         if url not in _URL_WHITELIST:
             return
-        subprocess.run(["open", url], check=False)
+        if sys.platform == "darwin":
+            subprocess.run(["/usr/bin/open", url], check=False)
+        elif sys.platform == "win32":
+            os.startfile(url)
+        else:
+            subprocess.run(["xdg-open", url], check=False)
 
     def open_github(self):
         """Open the project's GitHub page. Single source of truth for the URL
@@ -667,24 +711,24 @@ class Api:
             self._remember_input_dir(paths[0])
         return paths
 
-    def convert(self, paths, output_mode, custom_dir=None):
+    def convert(self, paths, output_mode, custom_dir=None, output_format="md"):
         """Start batch conversion on a daemon background thread (non-blocking).
         If a batch is already running the call is silently ignored."""
         if not self._batch_lock.acquire(blocking=False):
             return
         threading.Thread(
             target=self._run_batch_guarded,
-            args=(paths, output_mode, custom_dir),
+            args=(paths, output_mode, custom_dir, output_format),
             daemon=True,
         ).start()
 
-    def _run_batch_guarded(self, paths, output_mode, custom_dir=None):
+    def _run_batch_guarded(self, paths, output_mode, custom_dir=None, output_format="md"):
         try:
-            self._run_batch(paths, output_mode, custom_dir)
+            self._run_batch(paths, output_mode, custom_dir, output_format)
         finally:
             self._batch_lock.release()
 
-    def _run_batch(self, paths, output_mode, custom_dir=None):
+    def _run_batch(self, paths, output_mode, custom_dir=None, output_format="md"):
         """
         Build config+backend once, loop per file pushing progress to JS.
         Resolves symlinks before processing (mirrors CLI's security policy).
@@ -709,7 +753,7 @@ class Api:
         for i, path in enumerate(paths):
             path = str(Path(path).resolve())
             self._window.evaluate_js(f"onProgress({i + 1}, {total})")
-            result = _core._run_one(path, ai_backend, prompt, config, _resolver(path))
+            result = _core._run_one(path, ai_backend, prompt, config, _resolver(path), output_format=output_format)
             self._window.evaluate_js(
                 f"onResult({json.dumps(result, ensure_ascii=False)})"
             )
@@ -784,8 +828,9 @@ def main():
     _dnd_state["num_listeners"] = 1
 
     # Detect locale and build app info once (D1, D3)
-    lang = _detect_lang() if sys.platform == "darwin" else "en"
-    is_macos = sys.platform == "darwin"
+    lang = _detect_lang() if sys.platform in ("darwin", "win32") else "en"
+    # Language toggle is shown on macOS and Windows (PR #5 extended it to win32)
+    show_lang_toggle = sys.platform in ("darwin", "win32")
     app_info = {
         "version": _read_version(),
         "author": "notoriouslab",
@@ -805,9 +850,9 @@ def main():
     api._window = window
 
     # Inject initial language after page loads (D1, D2)
-    is_macos_js = "true" if is_macos else "false"
+    show_lang_toggle_js = "true" if show_lang_toggle else "false"
     window.events.loaded += lambda: window.evaluate_js(
-        f"init('{lang}', {is_macos_js})"
+        f"init('{lang}', {show_lang_toggle_js})"
     )
 
     webview.start(debug=False)

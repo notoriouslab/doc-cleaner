@@ -11,12 +11,16 @@ Doc Cleaner v1.6.1
 2. 點「選擇檔案」按鈕，或將文件拖放到視窗中
    （也可直接拖放整個資料夾，會自動轉換裡面所有支援的檔案，含子資料夾）
 3. 選擇輸出位置：
-   • 同資料夾 — 輸出的 .md 放在原始檔案旁邊
+   • 同資料夾 — 輸出檔放在原始檔案旁邊
    • 桌面 — 所有輸出集中放在桌面
    • 選擇資料夾… — 自選任一資料夾（會記住，下次沿用）
-4. 按「轉換」
-5. 完成後可點「預覽」直接在 App 內檢視轉好的 Markdown，
-   或點「在 Finder 顯示」查看輸出檔案
+4. 選擇輸出格式（會記住）：
+   • Markdown (.md) — 預設
+   • EPUB 電子書 (.epub) — 可直接在電子書閱讀器開啟
+   • 雙格式 — 同時輸出 .md 與 .epub
+5. 按「轉換」
+6. 完成後可點「預覽」直接在 App 內檢視轉好的 Markdown
+   （僅 Markdown 輸出可預覽），或點「在 Finder 顯示」查看輸出檔案
 
 
 【支援格式】
@@ -81,12 +85,16 @@ Plain-text extraction. No AI, no network, no configuration.
    (you can also drop a whole folder — every supported file inside it,
    including subfolders, is converted)
 3. Pick an output location:
-   • Same folder — the .md output sits next to the source file
+   • Same folder — the output sits next to the source file
    • Desktop — all output collected on the Desktop
    • Choose folder… — pick any folder (remembered for next time)
-4. Click "Convert"
-5. When done, click "Preview" to view the converted Markdown in-app,
-   or "Show in Finder" to view the output file
+4. Pick an output format (remembered):
+   • Markdown (.md) — default
+   • EPUB e-book (.epub) — opens directly in e-book readers
+   • Both — writes .md and .epub together
+5. Click "Convert"
+6. When done, click "Preview" to view the converted Markdown in-app
+   (Markdown output only), or "Show in Finder" to view the output file
 
 
 [Supported formats]

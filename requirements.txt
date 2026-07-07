@@ -40,3 +40,7 @@ keynote-parser>=1.14.4.0
 
 # macOS GUI (optional: pip install pywebview — macOS app only)
 # pywebview>=5.0.0
+
+
+# Testing (optional: pip install pytest)
+# pytest>=7.0.0

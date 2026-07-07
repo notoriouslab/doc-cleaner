@@ -95,6 +95,7 @@ def warn_config_secrets(config):
         (["ai", "groq", "api_key"], "GROQ_API_KEY"),
         (["ai", "nvidia", "api_key"], "NVIDIA_API_KEY"),
         (["ai", "ollama", "api_key"], "OLLAMA_API_KEY"),
+        (["ai", "openai", "api_key"], "OPENAI_API_KEY"),
         (["pdf", "password"], "PDF_PASSWORD"),
     ]
     for keys, env_name in secret_paths:
@@ -226,6 +227,21 @@ def create_ai_backend(ai_mode, config):
         model = mlx_config.get("model", "mlx-community/Qwen3-4B-4bit")
         max_tokens = mlx_config.get("max_tokens", 4096)
         return MLXBackend(model=model, max_tokens=max_tokens)
+
+    if ai_mode == "openai":
+        from ai.openai import OpenAIBackend
+
+        openai_config = ai_config.get("openai", {})
+        model = openai_config.get("model", "gpt-4o")
+        base_url = openai_config.get("base_url", "http://localhost:8000/v1")
+        api_key = os.getenv("OPENAI_API_KEY") or openai_config.get("api_key", "")
+        timeout = openai_config.get("timeout", 120)
+        return OpenAIBackend(
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            timeout=timeout,
+        )
 
     logger.error(f"Unknown AI backend: {ai_mode}")
     sys.exit(EXIT_NO_INPUT)
@@ -370,32 +386,38 @@ def parse_file(filepath, config):
     return text, images
 
 
-def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False):
+def process_file(filepath, ai_backend, prompt, config, output_dir, output_format="md", dry_run=False):
     """
-    Process a single file: parse → (optional AI) → Markdown output.
+    Process a single file: parse → (optional AI) → Markdown/EPUB output.
 
     Returns: (status, output_path)
         - status: "ok" | "dry_run" | "no_content" | "write_error" | "error"
-        - output_path: path to output file, or None on failure
+        - output_path: path to output file (primary format), or None on failure
     """
     filename = os.path.basename(filepath)
     stem = os.path.splitext(filename)[0]
-    output_path = os.path.join(output_dir, f"{stem}.md")
 
-    # Avoid overwriting existing output from a different source file
-    if os.path.exists(output_path):
+    # Resolve the collision suffix (if any) first on the primary format
+    primary_ext = ".md" if output_format in ("md", "both") else ".epub"
+    primary_path = os.path.join(output_dir, f"{stem}{primary_ext}")
+    if os.path.exists(primary_path):
         counter = 1
-        while os.path.exists(os.path.join(output_dir, f"{stem}_{counter}.md")):
+        while os.path.exists(os.path.join(output_dir, f"{stem}_{counter}{primary_ext}")):
             counter += 1
-        output_path = os.path.join(output_dir, f"{stem}_{counter}.md")
-        logger.info(f"  Output collision: {stem}.md exists, using {stem}_{counter}.md")
+        stem = f"{stem}_{counter}"
+        logger.info(f"  Output collision resolved to stem: {stem}")
 
     logger.info(f"Processing: {filename}")
 
     if dry_run:
         ext = os.path.splitext(filepath)[1].lower()
-        logger.info(f"  [dry-run] Would process {filename} ({ext}) → {output_path}")
-        return "dry_run", output_path
+        if output_format == "both":
+            logger.info(f"  [dry-run] Would process {filename} ({ext}) → {os.path.join(output_dir, stem)}.md and .epub")
+        elif output_format == "epub":
+            logger.info(f"  [dry-run] Would process {filename} ({ext}) → {os.path.join(output_dir, stem)}.epub")
+        else:
+            logger.info(f"  [dry-run] Would process {filename} ({ext}) → {os.path.join(output_dir, stem)}.md")
+        return "dry_run", os.path.join(output_dir, f"{stem}.md" if output_format != "epub" else f"{stem}.epub")
 
     try:
         text, images = parse_file(filepath, config)
@@ -413,16 +435,34 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False
             from output.markdown import render_raw_output
             frontmatter = config.get("output", {}).get("frontmatter", True)
             final_text = render_raw_output(text, filename=filename, source_path=filepath, frontmatter=frontmatter)
-            try:
-                fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    f.write(final_text)
-                os.replace(tmp_path, output_path)
-            except OSError as e:
-                logger.error(f"  Write error for {filename}: {e}")
-                return "write_error", None
-            logger.info(f"  → {output_path}")
-            return "ok", output_path
+            md_path = os.path.join(output_dir, f"{stem}.md")
+            if output_format in ("md", "both"):
+                try:
+                    fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        f.write(final_text)
+                    os.replace(tmp_path, md_path)
+                except OSError as e:
+                    logger.error(f"  Write error for {filename}: {e}")
+                    return "write_error", None
+                logger.info(f"  → {md_path}")
+            epub_path = os.path.join(output_dir, f"{stem}.epub")
+            if output_format in ("epub", "both"):
+                from output.epub import render_raw_epub
+                # Pass the transcript markdown WITHOUT the YAML frontmatter —
+                # title/source already go into the EPUB's own metadata, and
+                # frontmatter passed as body text would render as visible YAML.
+                content_epub = render_raw_epub(text, filename=filename, source_path=filepath)
+                try:
+                    fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
+                    with os.fdopen(fd, "wb") as f:
+                        f.write(content_epub)
+                    os.replace(tmp_path, epub_path)
+                except OSError as e:
+                    logger.error(f"  Write error for {filename}: {e}")
+                    return "write_error", None
+                logger.info(f"  → {epub_path}")
+            return "ok", epub_path if output_format == "epub" else md_path
 
         # PII redaction (opt-in via config)
         pii_config = config.get("pii", {})
@@ -437,14 +477,11 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False
 
         frontmatter = config.get("output", {}).get("frontmatter", True)
 
+        raw_response = None
         if ai_backend:
             # AI mode: send to LLM for structuring
-            from ai.base import clean_json_response
-            from output.markdown import render_ai_output, render_raw_output
-
             # Retry once on transient errors (429/503/timeout) before fallback
             max_retries = config.get("ai", {}).get("max_retries", 1)
-            raw_response = None
             last_err = None
             for attempt in range(1 + max_retries):
                 try:
@@ -460,74 +497,109 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, dry_run=False
                         )
                         time.sleep(wait)
 
-            if raw_response is None:
-                # All retries exhausted — fall back to raw mode if we have text
-                if text:
-                    logger.warning(
-                        f"  AI call failed after {1 + max_retries} attempts ({last_err}) "
-                        f"— falling back to raw mode"
-                    )
-                    content = render_raw_output(
-                        text, filename, source_path=filename,
-                        frontmatter=frontmatter,
-                    )
-                else:
-                    raise last_err  # no text to fall back on, propagate error
+            if raw_response is None and not text:
+                raise last_err  # no text to fall back on, propagate error
+
+        # Parse AI JSON if we have it
+        data = None
+        if ai_backend and raw_response is not None:
+            from ai.base import clean_json_response
+            data = clean_json_response(raw_response)
+
+            # Graceful degradation: if JSON repair failed badly, fall back to raw mode
+            if data.get("status") == "partial_recovery" and text:
+                logger.warning(f"  AI JSON output corrupted — falling back to raw mode")
+                data = None
+            elif pii_enabled:
+                from classifiers.pii import redact as redact_pii
+                if "refined_markdown" in data and isinstance(data["refined_markdown"], str):
+                    data["refined_markdown"], _ = redact_pii(data["refined_markdown"], enabled_patterns=pii_patterns)
+                if "summary" in data and isinstance(data["summary"], str):
+                    data["summary"], _ = redact_pii(data["summary"], enabled_patterns=pii_patterns)
+
+        # 1. Render Markdown if needed
+        content_md = None
+        if output_format in ("md", "both"):
+            from output.markdown import render_ai_output, render_raw_output
+            if data is not None:
+                content_md = render_ai_output(
+                    data, filename, source_path=filename,
+                    frontmatter=frontmatter,
+                )
             else:
-                data = clean_json_response(raw_response)
+                content_md = render_raw_output(
+                    text, filename, source_path=filename,
+                    frontmatter=frontmatter,
+                )
 
-                # Graceful degradation: if JSON repair failed badly, fall back to raw mode
-                if data.get("status") == "partial_recovery" and text:
-                    logger.warning("  AI JSON output corrupted — falling back to raw mode")
-                    content = render_raw_output(
-                        text, filename, source_path=filename,
-                        frontmatter=frontmatter,
-                    )
-                else:
-                    content = render_ai_output(
-                        data, filename, source_path=filename,
-                        frontmatter=frontmatter,
-                    )
-        else:
-            # Raw mode: output extracted text directly
-            from output.markdown import render_raw_output
+            # Final PII sweep on rendered markdown output (catches AI-echoed PII)
+            if pii_enabled:
+                from classifiers.pii import redact as redact_pii
+                content_md, pii_output_count = redact_pii(content_md, enabled_patterns=pii_patterns)
+                if pii_output_count:
+                    logger.info(f"  PII: {pii_output_count} item(s) redacted from Markdown output")
 
-            content = render_raw_output(
-                text, filename, source_path=filename,
-                frontmatter=frontmatter,
-            )
+        # 2. Render EPUB if needed
+        content_epub = None
+        if output_format in ("epub", "both"):
+            from output.epub import render_ai_epub, render_raw_epub
+            epub_lang = config.get("output", {}).get("epub_language", "zh-TW")
+            if data is not None:
+                content_epub = render_ai_epub(
+                    data, filename, source_path=filename, language=epub_lang
+                )
+            else:
+                content_epub = render_raw_epub(
+                    text, filename, source_path=filename, language=epub_lang
+                )
 
-        # Final PII sweep on rendered output (catches AI-echoed PII)
-        if pii_enabled:
-            from classifiers.pii import redact as redact_pii
-            content, pii_output_count = redact_pii(content, enabled_patterns=pii_patterns)
-            if pii_output_count:
-                logger.info(f"  PII: {pii_output_count} item(s) redacted from output")
-
-        # Atomic write via tempfile (safe for parallel invocations)
-        try:
+        # Define safe write helper
+        def safe_write(path, data_to_write, is_binary=False):
             os.makedirs(output_dir, exist_ok=True)
+            mode = "wb" if is_binary else "w"
+            encoding = None if is_binary else "utf-8"
             fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
             try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    f.write(content)
-                os.replace(tmp_path, output_path)
+                if is_binary:
+                    with os.fdopen(fd, mode) as f:
+                        f.write(data_to_write)
+                else:
+                    with os.fdopen(fd, mode, encoding=encoding) as f:
+                        f.write(data_to_write)
+                os.replace(tmp_path, path)
             except BaseException:
-                # Clean up temp file on any failure (e.g. cross-filesystem rename)
                 try:
                     os.unlink(tmp_path)
                 except OSError:
                     pass
                 raise
-        except OSError as e:
-            logger.error(f"  Write failed for {output_path}: {e}")
-            return "write_error", None
 
-        logger.info(f"  → {output_path}")
-        return "ok", output_path
+        # Write Markdown file
+        md_path = os.path.join(output_dir, f"{stem}.md")
+        if output_format in ("md", "both"):
+            try:
+                safe_write(md_path, content_md, is_binary=False)
+                logger.info(f"  → {md_path}")
+            except OSError as e:
+                logger.error(f"  Write failed for {md_path}: {e}")
+                return "write_error", None
+
+        # Write EPUB file
+        epub_path = os.path.join(output_dir, f"{stem}.epub")
+        if output_format in ("epub", "both"):
+            try:
+                safe_write(epub_path, content_epub, is_binary=True)
+                logger.info(f"  → {epub_path}")
+            except OSError as e:
+                logger.error(f"  Write failed for {epub_path}: {e}")
+                return "write_error", None
+
+        # Return status and primary output path
+        primary_path = epub_path if output_format == "epub" else md_path
+        return "ok", primary_path
 
     except Exception as e:
-        logger.error(f"  Failed: {filename}: {e}")
+        logger.exception(f"  Failed: {filename}: {e}")
         return "error", None
 
 
@@ -636,9 +708,10 @@ def main():
     parser.add_argument("--input", "-i", required=True, help="file or directory to process")
     parser.add_argument("--output-dir", "-o", default="./output", help="output directory (default: ./output)")
     parser.add_argument("--config", default=None, help="path to config JSON (default: <script-dir>/config.json)")
-    parser.add_argument("--ai", choices=["gemini", "groq", "nvidia", "ollama", "mlx", "none"], default=None, help="AI backend (default: from config or gemini)")
+    parser.add_argument("--ai", choices=["gemini", "groq", "nvidia", "ollama", "mlx", "openai", "none"], default=None, help="AI backend (default: from config or gemini)")
     parser.add_argument("--password", default=None, help="PDF decryption password (overrides .env and config)")
     parser.add_argument("--summary", action="store_true", help="print JSON summary to stdout after processing")
+    parser.add_argument("--format", "-f", choices=["md", "epub", "both"], default="md", help="output format (default: md)")
     parser.add_argument("--dry-run", action="store_true", help="preview without writing files")
     parser.add_argument("--verbose", action="store_true", help="enable debug logging")
     parser.add_argument("--version", action="version", version=f"doc-cleaner {__version__}")
@@ -696,6 +769,7 @@ def main():
         files,
         output_resolver=lambda _: args.output_dir,
         ai=ai_mode,
+        output_format=args.format,
         config=config,
         config_path=config_path,
         dry_run=args.dry_run,
