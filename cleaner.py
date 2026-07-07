@@ -280,8 +280,15 @@ def parse_file(filepath, config):
             if decrypted:
                 target = decrypted
 
-        # Try ODL extraction first (high-quality, table-aware)
-        odl_text = pdf.extract_text_odl(target)
+        # Deterministic routing: table-bearing PDFs take the native PyMuPDF
+        # table path (measured equal-or-better than ODL on tables, and ODL
+        # collapses complex statement tables); prose PDFs keep ODL's layout
+        # reconstruction. First-party find_tables scan, fail-open to ODL.
+        if pdf.has_tables(target):
+            odl_text = None
+        else:
+            # Try ODL extraction (high-quality prose layout)
+            odl_text = pdf.extract_text_odl(target)
 
         # Classify (ODL text informs the decision if available)
         pdf_type, raw_text, metadata = classify(target, odl_text=odl_text)

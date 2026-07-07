@@ -519,3 +519,46 @@ class TestOnResultWiring:
         html = appmod._HTML
         assert "if (ok && result.output)" in html
         assert "btn.dataset.path = result.output;" in html
+
+
+class TestSetLang:
+    """Language persistence bridge (route-pdf-tables-native)."""
+
+    def test_valid_codes_persist(self):
+        api = _make_api()
+        with patch("macapp.app.settings.save") as save:
+            api.set_lang("en")
+        save.assert_called_once()
+        assert api._settings["lang"] == "en"
+
+    def test_invalid_codes_ignored(self):
+        api = _make_api()
+        api._settings["lang"] = None
+        with patch("macapp.app.settings.save") as save:
+            for bad in ("fr", "", None, 123, ["zh"], "ZH"):
+                api.set_lang(bad)
+        save.assert_not_called()
+        assert api._settings["lang"] is None
+
+    def test_toggle_wiring_calls_bridge(self):
+        import macapp.app as appmod
+        assert "pywebview.api.set_lang(newLang)" in appmod._HTML
+
+
+class TestStartupLangResolution:
+    def test_stored_lang_wins_over_locale(self):
+        import macapp.app as appmod
+        with patch("macapp.app.settings.load", return_value={"lang": "en"}), \
+             patch("macapp.app._detect_lang", return_value="zh") as detect:
+            stored = appmod.settings.load().get("lang")
+            lang = stored if stored in ("zh", "en") else appmod._detect_lang()
+        assert lang == "en"
+        detect.assert_not_called()
+
+    def test_none_falls_through_to_detection(self):
+        import macapp.app as appmod
+        with patch("macapp.app.settings.load", return_value={"lang": None}), \
+             patch("macapp.app._detect_lang", return_value="zh"):
+            stored = appmod.settings.load().get("lang")
+            lang = stored if stored in ("zh", "en") else appmod._detect_lang()
+        assert lang == "zh"

@@ -114,10 +114,14 @@ def odl_available():
 def clean_odl_output(text):
     """
     Post-process opendataloader-pdf output:
+    - Replace <br> / <br/> / <br /> with a single space
     - Remove ![image N](...) lines
     - Compress 3+ consecutive blank lines to 1
     - Strip leading/trailing whitespace
     """
+    # ODL emits <br> inside table cells; downstream Markdown consumers (and
+    # the in-app preview) treat them as literal text.
+    text = re.sub(r"<br\s*/?>", " ", text)
     # Remove image reference lines
     text = re.sub(r"^!\[image \d+\]\([^)]*\)\s*$", "", text, flags=re.MULTILINE)
     # Compress 3+ blank lines to 1
@@ -484,6 +488,26 @@ def _extract_page_text_with_tables(page):
 
     except Exception:
         return plain()
+
+
+def has_tables(filepath):
+    """
+    First-party routing signal: True if any page has a detectable table.
+
+    Early-exits on the first hit. Never raises — any failure (fitz missing,
+    unreadable/corrupt file) returns False so the caller falls back to the
+    ODL-first flow (fail-open).
+    """
+    if not fitz:
+        return False
+    try:
+        with fitz.open(filepath) as doc:
+            for page in doc:
+                if page.find_tables().tables:
+                    return True
+        return False
+    except Exception:
+        return False
 
 
 def get_page_count(filepath):

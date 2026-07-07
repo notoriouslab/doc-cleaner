@@ -42,12 +42,14 @@ DEFAULTS = {
     "custom_output_dir": None,
     "last_input_dir": None,
     "output_format": "md",
+    "lang": None,
 }
 
 # Per-key validators: a stored value is accepted only if it passes, else the
 # default for that key is used (never raises).
 _VALID_OUTPUT_MODES = {"sibling", "desktop", "custom"}
 _VALID_OUTPUT_FORMATS = {"md", "epub", "both"}
+_VALID_LANGS = {"zh", "en"}
 
 
 def _valid(key, value):
@@ -59,6 +61,9 @@ def _valid(key, value):
         return isinstance(value, str) and value in _VALID_OUTPUT_MODES
     if key == "output_format":
         return isinstance(value, str) and value in _VALID_OUTPUT_FORMATS
+    if key == "lang":
+        # None = follow system-locale auto-detection
+        return value is None or (isinstance(value, str) and value in _VALID_LANGS)
     if key in ("custom_output_dir", "last_input_dir"):
         return value is None or isinstance(value, str)
     return False

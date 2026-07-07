@@ -513,7 +513,9 @@ _HTML = """<!DOCTYPE html>
 
     // ── lang toggle (Manual language toggle) ──────────────────────────────
     document.getElementById('btn-lang').addEventListener('click', function() {
-      setLang(_lang === 'zh' ? 'en' : 'zh');
+      var newLang = (_lang === 'zh' ? 'en' : 'zh');
+      setLang(newLang);
+      pywebview.api.set_lang(newLang);   // persist the manual choice
       renderFiles(); // refresh count text
     });
 
@@ -650,6 +652,15 @@ class Api:
     def set_output_format(self, format_val):
         """Persist the chosen output format (md/epub/both)."""
         self._settings["output_format"] = format_val
+        settings.save(self._settings)
+
+    def set_lang(self, code):
+        """Persist the manual language choice. Invalid codes are ignored
+        (bridge inputs are untrusted); None/auto-detect is not settable here —
+        the toggle always picks an explicit language."""
+        if code not in ("zh", "en"):
+            return
+        self._settings["lang"] = code
         settings.save(self._settings)
 
     def pick_output_folder(self):
@@ -828,7 +839,12 @@ def main():
     _dnd_state["num_listeners"] = 1
 
     # Detect locale and build app info once (D1, D3)
-    lang = _detect_lang() if sys.platform in ("darwin", "win32") else "en"
+    # Stored manual choice wins; None falls through to locale auto-detection.
+    _stored_lang = settings.load().get("lang")
+    if _stored_lang in ("zh", "en"):
+        lang = _stored_lang
+    else:
+        lang = _detect_lang() if sys.platform in ("darwin", "win32") else "en"
     # Language toggle is shown on macOS and Windows (PR #5 extended it to win32)
     show_lang_toggle = sys.platform in ("darwin", "win32")
     app_info = {

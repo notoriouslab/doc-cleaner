@@ -23,6 +23,7 @@ def test_defaults_shape():
         "custom_output_dir": None,
         "last_input_dir": None,
         "output_format": "md",
+        "lang": None,
     }
 
 
@@ -136,3 +137,28 @@ def test_output_format_corrupt_values_fall_back(data_dir):
         (data_dir / settings.SETTINGS_FILENAME).write_text(
             json.dumps({"version": 1, "output_format": bad}), encoding="utf-8")
         assert settings.load()["output_format"] == "md"
+
+
+def test_lang_default_is_none(data_dir):
+    assert settings.load()["lang"] is None
+
+
+def test_lang_round_trip(data_dir):
+    for code in ("zh", "en"):
+        data = settings.load()
+        data["lang"] = code
+        settings.save(data)
+        assert settings.load()["lang"] == code
+    # None (auto-detect) survives a JSON null round-trip
+    data = settings.load()
+    data["lang"] = None
+    settings.save(data)
+    assert settings.load()["lang"] is None
+
+
+def test_lang_corrupt_values_fall_back(data_dir):
+    data_dir.mkdir(parents=True, exist_ok=True)
+    for bad in (123, "fr", [], {"l": "zh"}, "ZH"):
+        (data_dir / settings.SETTINGS_FILENAME).write_text(
+            json.dumps({"version": 1, "lang": bad}), encoding="utf-8")
+        assert settings.load()["lang"] is None
