@@ -1,8 +1,11 @@
 """
 EPUB output renderer — generates structured EPUB 3 files.
 
-Uses Python's standard `zipfile` library to assemble the EPUB.
-Can use the `markdown` library if installed, otherwise falls back to a built-in basic parser.
+Uses Python's standard `zipfile` library to assemble the EPUB, and a single
+built-in Markdown→XHTML renderer (zero dependencies) targeting the constructs
+doc-cleaner itself generates: headings, pipe tables, lists, and code blocks.
+One rendering path means identical output in CLI, development, and packaged
+apps.
 """
 import datetime
 import uuid
@@ -13,10 +16,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-try:
-    import markdown
-except ImportError:
-    markdown = None
+# Characters forbidden in XML 1.0 element content: C0 controls (except \t\n\r),
+# lone surrogates (reachable via surrogateescape-decoded input; they also make
+# UTF-8 encoding raise), and the two noncharacters.
+_XML_INVALID = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\ud800-\udfff\ufffe\uffff]")
+
+
+def _xml_escape(value):
+    """Coerce to str, drop XML-invalid characters, escape markup. Never raises."""
+    s = _XML_INVALID.sub("", str(value))
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
 def fallback_markdown_to_xhtml(text):
@@ -24,8 +33,7 @@ def fallback_markdown_to_xhtml(text):
     A lightweight, regex-based Markdown to XHTML converter.
     Guarantees valid XML output and zero external dependencies.
     """
-    def xml_escape(s):
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    xml_escape = _xml_escape
 
     def inline_format(s):
         # Escaping code snippets separately first to avoid formatting conflicts
@@ -179,15 +187,8 @@ def fallback_markdown_to_xhtml(text):
 
 
 def markdown_to_xhtml(text):
-    """Convert markdown text to valid XHTML string."""
-    if markdown:
-        try:
-            return markdown.markdown(text, extensions=['tables', 'fenced_code'], output_format="xhtml")
-        except Exception as e:
-            logger.warning(f"Failed to render markdown with extensions: {e}. Falling back to basic conversion.")
-            return markdown.markdown(text, output_format="xhtml")
-    else:
-        return fallback_markdown_to_xhtml(text)
+    """Convert markdown text to valid XHTML string (single built-in renderer)."""
+    return fallback_markdown_to_xhtml(text)
 
 
 def create_epub_archive(title, content_html, summary="", tags=None, source_path="", language="zh-TW"):
@@ -215,9 +216,8 @@ def create_epub_archive(title, content_html, summary="", tags=None, source_path=
         book_uuid = str(uuid.uuid4())
         modified_time = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         
-        def xml_esc(s):
-            return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-            
+        xml_esc = _xml_escape
+
         esc_title = xml_esc(title)
         
         # 3. OEBPS/content.opf

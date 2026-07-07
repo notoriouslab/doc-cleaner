@@ -71,10 +71,16 @@ def _run_one(filepath, ai_backend, prompt, config, output_dir, output_format="md
     else:
         error_msg = None
 
+    output = str(Path(out_path).resolve()) if out_path else None
+    # Preview target: only Markdown can be previewed. For md/both the primary
+    # path process_file returns IS the written .md (epub-only never writes one),
+    # so this derives locally with no process_file interface change.
+    preview = output if (status == "ok" and output_format in ("md", "both")) else None
     return {
         "file": Path(filepath).name,
         "input": str(Path(filepath).resolve()),
-        "output": str(Path(out_path).resolve()) if out_path else None,
+        "output": output,
+        "preview": preview,
         "status": status,
         "error": error_msg,
     }

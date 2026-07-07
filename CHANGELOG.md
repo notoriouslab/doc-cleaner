@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.7.0 (unreleased)
+
+### New Features
+
+- **EPUB output** (contributed by @stormchen in #5): choose Markdown, EPUB e-book, or both — `-f/--format {md,epub,both}` in the CLI and a format selector in the GUI (remembered across launches). Generated EPUBs are standards-conformant EPUB 3 files built with a zero-dependency renderer
+- **Windows GUI improvements** (also from #5): Chinese UI now auto-detects Windows CJK locales, the language toggle is available on Windows, and links open via the native handler
+
+### Bug Fixes (integration hardening)
+
+- Format preference persists through the settings schema (was silently reset to md each launch)
+- Preview is offered only for Markdown outputs; epub-only results no longer route a binary through the Markdown previewer
+- JSONL conversion regression fixed (renamed variable left the JSONL write path broken) with an end-to-end regression test
+- EPUB packer hardened: XML-invalid characters (NUL, lone surrogates, control chars) are stripped, all metadata interpolations escaped, structure pinned by tests
+
 ## v1.6.1
 
 ### Bug Fixes

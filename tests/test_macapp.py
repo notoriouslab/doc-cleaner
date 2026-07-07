@@ -501,5 +501,21 @@ class TestOpenGithub:
                 api.open_github()
             run.assert_called_once()
             args = run.call_args[0][0]
-            expected_cmd = "open" if sys.platform == "darwin" else "xdg-open"
+            expected_cmd = "/usr/bin/open" if sys.platform == "darwin" else "xdg-open"
             assert args == [expected_cmd, appmod.GITHUB_URL]
+
+
+class TestOnResultWiring:
+    """Static pin of the JS result-button gating (integrate-epub-output)."""
+
+    def test_preview_gated_on_preview_field(self):
+        import macapp.app as appmod
+        html = appmod._HTML
+        assert "if (ok && result.preview)" in html
+        assert "pv.dataset.path = result.preview;" in html
+
+    def test_reveal_gated_on_output_field(self):
+        import macapp.app as appmod
+        html = appmod._HTML
+        assert "if (ok && result.output)" in html
+        assert "btn.dataset.path = result.output;" in html

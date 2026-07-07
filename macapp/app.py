@@ -353,9 +353,9 @@ _HTML = """<!DOCTYPE html>
     }
 
     // ── init — called from Python after page loads ──────────────────────────
-    function init(langCode, isMacos) {
+    function init(langCode, showLangToggle) {
       setLang(langCode);
-      if (isMacos) {
+      if (showLangToggle) {
         document.getElementById('btn-lang').style.display = '';
       }
       // Pre-fetch app info for About overlay
@@ -552,16 +552,19 @@ _HTML = """<!DOCTYPE html>
           '<div class="file-name">' + escHtml(result.file) + '</div>' +
           (result.error ? '<div class="file-err">' + escHtml(result.error) + '</div>' : '') +
         '</div>';
-      if (ok && result.output) {
+      if (ok && result.preview) {
+        // Only Markdown outputs are previewable — epub-only results carry
+        // preview=null and get no preview button.
         var pv = document.createElement('button');
         pv.className = 'btn-reveal';
         pv.textContent = STRINGS[_lang].preview;
-        pv.dataset.path = result.output;
+        pv.dataset.path = result.preview;
         pv.addEventListener('click', function() {
           openPreview(this.dataset.path);
         });
         li.appendChild(pv);
-
+      }
+      if (ok && result.output) {
         var btn = document.createElement('button');
         btn.className = 'btn-reveal';
         btn.textContent = STRINGS[_lang].revealInFinder;
@@ -826,7 +829,8 @@ def main():
 
     # Detect locale and build app info once (D1, D3)
     lang = _detect_lang() if sys.platform in ("darwin", "win32") else "en"
-    is_macos = sys.platform in ("darwin", "win32")
+    # Language toggle is shown on macOS and Windows (PR #5 extended it to win32)
+    show_lang_toggle = sys.platform in ("darwin", "win32")
     app_info = {
         "version": _read_version(),
         "author": "notoriouslab",
@@ -846,9 +850,9 @@ def main():
     api._window = window
 
     # Inject initial language after page loads (D1, D2)
-    is_macos_js = "true" if is_macos else "false"
+    show_lang_toggle_js = "true" if show_lang_toggle else "false"
     window.events.loaded += lambda: window.evaluate_js(
-        f"init('{lang}', {is_macos_js})"
+        f"init('{lang}', {show_lang_toggle_js})"
     )
 
     webview.start(debug=False)

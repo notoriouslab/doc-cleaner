@@ -435,16 +435,34 @@ def process_file(filepath, ai_backend, prompt, config, output_dir, output_format
             from output.markdown import render_raw_output
             frontmatter = config.get("output", {}).get("frontmatter", True)
             final_text = render_raw_output(text, filename=filename, source_path=filepath, frontmatter=frontmatter)
-            try:
-                fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    f.write(final_text)
-                os.replace(tmp_path, output_path)
-            except OSError as e:
-                logger.error(f"  Write error for {filename}: {e}")
-                return "write_error", None
-            logger.info(f"  → {output_path}")
-            return "ok", output_path
+            md_path = os.path.join(output_dir, f"{stem}.md")
+            if output_format in ("md", "both"):
+                try:
+                    fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        f.write(final_text)
+                    os.replace(tmp_path, md_path)
+                except OSError as e:
+                    logger.error(f"  Write error for {filename}: {e}")
+                    return "write_error", None
+                logger.info(f"  → {md_path}")
+            epub_path = os.path.join(output_dir, f"{stem}.epub")
+            if output_format in ("epub", "both"):
+                from output.epub import render_raw_epub
+                # Pass the transcript markdown WITHOUT the YAML frontmatter —
+                # title/source already go into the EPUB's own metadata, and
+                # frontmatter passed as body text would render as visible YAML.
+                content_epub = render_raw_epub(text, filename=filename, source_path=filepath)
+                try:
+                    fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
+                    with os.fdopen(fd, "wb") as f:
+                        f.write(content_epub)
+                    os.replace(tmp_path, epub_path)
+                except OSError as e:
+                    logger.error(f"  Write error for {filename}: {e}")
+                    return "write_error", None
+                logger.info(f"  → {epub_path}")
+            return "ok", epub_path if output_format == "epub" else md_path
 
         # PII redaction (opt-in via config)
         pii_config = config.get("pii", {})
