@@ -9,7 +9,8 @@ Key features:
 """
 import os
 import logging
-import platform
+
+from parsers._tableutil import escape_cell
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ def _table_to_markdown(table):
         return ""
     rows = []
     for row in table.rows:
-        cells = [cell.text.strip().replace("|", "\\|") for cell in row.cells]
+        cells = [escape_cell(cell.text) for cell in row.cells]
         rows.append("| " + " | ".join(cells) + " |")
     if not rows:
         return ""

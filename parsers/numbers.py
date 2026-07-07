@@ -17,15 +17,11 @@ os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
 
 import logging
 
+from parsers._tableutil import escape_cell as _cell_str
+
 logger = logging.getLogger(__name__)
 
 MAX_CHARS_PER_TABLE = 8000
-
-
-def _cell_str(value):
-    if value is None:
-        return ""
-    return str(value)
 
 
 def _table_to_markdown(rows, max_chars=MAX_CHARS_PER_TABLE):

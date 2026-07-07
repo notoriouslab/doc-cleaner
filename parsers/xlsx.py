@@ -10,7 +10,21 @@ Key features:
 import os
 import logging
 
+from parsers._tableutil import escape_cell
+
 logger = logging.getLogger(__name__)
+
+
+def _escape_df(df):
+    """Escape string cell values and string column names for pipe-table output.
+
+    Non-string values are left untouched so tabulate keeps its numeric
+    formatting and alignment. df.map does not reach column names, so those
+    are rebuilt explicitly.
+    """
+    escaped = df.map(lambda v: escape_cell(v) if isinstance(v, str) else v)
+    escaped.columns = [escape_cell(c) if isinstance(c, str) else c for c in df.columns]
+    return escaped
 
 
 def parse(filepath, max_chars_per_sheet=8000):
@@ -48,7 +62,7 @@ def parse(filepath, max_chars_per_sheet=8000):
 
         parts = []
         for name, df in sheets.items():
-            df = df.fillna("")
+            df = _escape_df(df.fillna(""))
             md = df.to_markdown(index=False)
             if len(md) > max_chars_per_sheet:
                 # Binary search for max rows that fit within the char budget

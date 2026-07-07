@@ -223,3 +223,33 @@ class TestGracefulFailure:
             result = parse("bad.numbers")  # must not raise
 
         assert result == ""
+
+
+class TestCellEscaping:
+    """Shared escape_cell adoption (unify-table-cell-escaping)."""
+
+    def test_pipe_in_cell_escaped(self):
+        from parsers.numbers import _table_to_markdown
+        md, total, shown = _table_to_markdown([["欄", "值"], ["a|b", "x"]])
+        assert "a\\|b" in md
+        for line in md.split("\n"):
+            assert line.replace("\\|", "").count("|") == 3  # 2-col structure intact
+
+    def test_trailing_backslash_escaped(self):
+        from parsers.numbers import _table_to_markdown
+        md, _, _ = _table_to_markdown([["欄", "值"], ["C:\\", "x"]])
+        assert "C:\\\\" in md
+
+    def test_newline_cell_single_line(self):
+        from parsers.numbers import _table_to_markdown
+        md, _, _ = _table_to_markdown([["欄", "值"], ["第一行\n第二行", "x"]])
+        assert "第一行 第二行" in md
+        assert len(md.split("\n")) == 3  # header + sep + one data row
+
+    def test_truncation_with_escaping_heavy_cells(self):
+        from parsers.numbers import _table_to_markdown
+        rows = [["A", "B"]] + [["|" * 40, "\\" * 40] for _ in range(200)]
+        md, total, shown = _table_to_markdown(rows, max_chars=2000)
+        assert total == 200
+        assert 0 < shown < total          # truncated earlier due to escaping
+        assert "(truncated" in md

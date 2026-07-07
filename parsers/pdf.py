@@ -16,6 +16,11 @@ import logging
 import subprocess
 from dataclasses import dataclass, field
 
+# Shared cell normalization/escaping — single source of truth for all
+# pipe-table-producing parsers.
+from parsers._tableutil import escape_cell as _cell_to_str
+from parsers._tableutil import normalize_cell as _cell_text
+
 logger = logging.getLogger(__name__)
 
 # --- opendataloader-pdf (ODL) support ---
@@ -281,7 +286,7 @@ def extract_images(filepath, dpi=200, max_pages=15):
         )
         return [_optimize_image(img) for img in pil_images]
     except MemoryError:
-        logger.error(f"OOM during PDF image extraction — try lowering DPI or max_pages")
+        logger.error("OOM during PDF image extraction — try lowering DPI or max_pages")
         return []
     except Exception as e:
         msg = str(e).lower()
@@ -314,22 +319,6 @@ class _TablePart:
     y: float
     header: list = field(default_factory=list)
     rows: list = field(default_factory=list)
-
-
-def _cell_text(cell):
-    """Normalize one extracted cell: None → '', collapse all whitespace."""
-    if cell is None:
-        return ""
-    return re.sub(r'\s+', ' ', str(cell)).strip()
-
-
-def _cell_to_str(cell):
-    """Normalize + escape one cell for pipe-table rendering.
-
-    Backslash is escaped before pipe so a cell ending in '\\' cannot turn
-    the following column delimiter into an escaped literal pipe.
-    """
-    return _cell_text(cell).replace('\\', '\\\\').replace('|', '\\|')
 
 
 def _table_to_markdown(rows, external_header=None):

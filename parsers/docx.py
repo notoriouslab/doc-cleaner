@@ -3,9 +3,9 @@ DOCX parser — python-docx with table preservation, textutil (macOS) fallback.
 
 Key feature: converts Word tables to Markdown pipe tables instead of dropping them.
 """
-import os
 import logging
-import platform
+
+from parsers._tableutil import escape_cell
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +14,17 @@ _W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 
 def _tc_text(tc):
-    """Extract plain text from a <w:tc> XML element, joining paragraphs with a space."""
+    """Extract plain text from a <w:tc> XML element, joining paragraphs with a space.
+
+    <w:br/> line breaks (shift+enter, or '\\n' assigned via python-docx) carry
+    no text node, so they are mapped to a space to keep the word boundary.
+    """
     parts = []
     for p in tc.iter(f"{{{_W}}}p"):
-        para = "".join(t.text or "" for t in p.iter(f"{{{_W}}}t")).strip()
+        frags = []
+        for node in p.iter(f"{{{_W}}}t", f"{{{_W}}}br"):
+            frags.append(" " if node.tag == f"{{{_W}}}br" else (node.text or ""))
+        para = "".join(frags).strip()
         if para:
             parts.append(para)
     return " ".join(parts)
@@ -50,7 +57,7 @@ def _table_to_markdown(table):
     for row in table.rows:
         cells = []
         for tc in row._tr.tc_lst:
-            text = _tc_text(tc).replace("|", "\\|").replace("\n", " ")
+            text = escape_cell(_tc_text(tc))
             span = _tc_gridspan(tc)
             cells.append(text)
             for _ in range(span - 1):
