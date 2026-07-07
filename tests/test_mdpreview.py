@@ -35,6 +35,21 @@ class TestBlocks:
         assert "<th></th>" in out  # empty cell, table not broken
         assert "<td>x</td>" in out
 
+    def test_escaped_pipe_in_cell_kept_as_one_cell(self):
+        # parsers escape '|' inside cells as '\\|' — preview must not split on it
+        md = "| A | B |\n| --- | --- |\n| a\\|b | c |"
+        out = r(md)
+        assert "<td>a|b</td>" in out
+        assert "<td>c</td>" in out
+        assert "<td>a\\</td>" not in out
+
+    def test_escaped_backslash_then_delimiter(self):
+        # cell ending in a literal backslash: rendered as '\\\\' + real delimiter
+        md = "| P | V |\n| --- | --- |\n| C:\\\\ | x |"
+        out = r(md)
+        assert "<td>C:\\</td>" in out
+        assert "<td>x</td>" in out
+
     def test_unordered_list(self):
         out = r("- one\n- two")
         assert "<ul>" in out and "<li>one</li>" in out and "<li>two</li>" in out

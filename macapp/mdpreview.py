@@ -85,12 +85,30 @@ def _inline(text):
 # ── tables ──────────────────────────────────────────────────────────────────
 
 def _split_row(line):
+    # Split on unescaped '|' only; backslash escapes the next character
+    # ('\|' → literal pipe, '\\' → literal backslash), matching how the
+    # PDF/DOCX/PPTX parsers escape pipes inside table cells.
+    cells, cur, i = [], [], 0
     s = line.strip()
-    if s.startswith("|"):
-        s = s[1:]
-    if s.endswith("|"):
-        s = s[:-1]
-    return [c.strip() for c in s.split("|")]
+    while i < len(s):
+        ch = s[i]
+        if ch == "\\" and i + 1 < len(s):
+            cur.append(s[i + 1])
+            i += 2
+        elif ch == "|":
+            cells.append("".join(cur).strip())
+            cur = []
+            i += 1
+        else:
+            cur.append(ch)
+            i += 1
+    cells.append("".join(cur).strip())
+    # Drop the empty edge cells produced by leading/trailing delimiters
+    if cells and cells[0] == "":
+        cells = cells[1:]
+    if cells and cells[-1] == "":
+        cells = cells[:-1]
+    return cells
 
 
 def _render_table(table_lines):

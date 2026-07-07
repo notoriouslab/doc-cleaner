@@ -14,6 +14,7 @@ import sys
 import shutil
 import logging
 import subprocess
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -296,78 +297,147 @@ def extract_images(filepath, dpi=200, max_pages=15):
         return []
 
 
-def _clean_table_md(md: str) -> str:
+@dataclass
+class _TextPart:
+    """A non-table text block on a page, positioned by its top y-coordinate."""
+    y: float
+    text: str
+
+
+@dataclass
+class _TablePart:
+    """A detected table: resolved header cells (str only) + data rows.
+
+    ``header`` never contains None — span-covered header cells resolve to "".
+    ``rows`` may contain None for span-covered data cells (rendered blank).
     """
-    Post-process PyMuPDF to_markdown() output:
+    y: float
+    header: list = field(default_factory=list)
+    rows: list = field(default_factory=list)
 
-    1. Remove <br> tags (multi-line cell content → single space).
-    2. If the first row is all "ColN" placeholders (PyMuPDF fallback when it
-       cannot detect a real header), promote the first data row as the header.
-    3. Remove consecutive duplicate rows (artifacts of merged/spanned cells
-       that PyMuPDF expands into repeated identical rows).
+
+def _cell_text(cell):
+    """Normalize one extracted cell: None → '', collapse all whitespace."""
+    if cell is None:
+        return ""
+    return re.sub(r'\s+', ' ', str(cell)).strip()
+
+
+def _cell_to_str(cell):
+    """Normalize + escape one cell for pipe-table rendering.
+
+    Backslash is escaped before pipe so a cell ending in '\\' cannot turn
+    the following column delimiter into an escaped literal pipe.
     """
-    # 1. Strip <br>
-    md = re.sub(r'\s*<br>\s*', ' ', md)
+    return _cell_text(cell).replace('\\', '\\\\').replace('|', '\\|')
 
-    lines = md.strip().split('\n')
-    if not lines:
-        return md
 
-    # 2. ColN → real header promotion
-    if re.match(r'^\|\s*Col\d+(\|\s*Col\d+)*\s*\|$', lines[0].strip()):
-        # lines[0] = ColN header, lines[1] = |---|, lines[2] = first data row
-        if len(lines) > 2 and re.match(r'^\|[-| ]+\|$', lines[1].strip()):
-            lines[0] = lines[2]   # promote first data row to header
-            del lines[2]          # remove duplicate data row
+def _table_to_markdown(rows, external_header=None):
+    """
+    Render extracted table cells as a GFM pipe table.
 
-    # 3. Remove consecutive duplicate rows
-    deduped: list = []
-    prev = None
-    for line in lines:
-        if line != prev:
-            deduped.append(line)
-        prev = line
+    ``rows`` is ``Table.extract()`` output: list of rows, cells are str or
+    None (None = covered by a merged cell → rendered as a blank cell, so the
+    merged text appears only in the first cell of its span). The header is
+    the first row, unless ``external_header`` is given (PyMuPDF external
+    header), in which case every row is data.
 
-    return '\n'.join(deduped)
+    Ragged rows are padded to the widest row; empty cells render as a single
+    space to keep cell boundaries visible. Returns "" for empty input.
+    An empty ``external_header`` is treated as absent (first row promotes).
+    """
+    if external_header:
+        header, data = list(external_header), rows
+    elif rows:
+        header, data = rows[0], rows[1:]
+    else:
+        return ""
+
+    width = max([len(header)] + [len(r) for r in data])
+    if width == 0:
+        return ""
+
+    def render_row(cells):
+        cells = [_cell_to_str(c) for c in cells]
+        cells += [""] * (width - len(cells))
+        return "|" + "|".join(c if c else " " for c in cells) + "|"
+
+    header_line = render_row(header)
+    if not header_line.replace("|", "").strip() and not data:
+        return ""
+
+    lines = [header_line, "|" + "|".join(["---"] * width) + "|"]
+    lines += [render_row(r) for r in data]
+    return "\n".join(lines)
+
+
+def _merge_cross_page_tables(pages):
+    """
+    Flatten per-page part lists, merging cross-page table continuations.
+
+    A table that continues onto the next page (repeated-header convention)
+    is detected as: the FIRST table of page N has a header equal — same cell
+    texts AND same column count — to the LAST table of page N-1. Its data
+    rows are appended to that table (single header in the output); if the
+    boundary data row was detected on both pages, it is kept only once.
+
+    A page with no tables breaks any continuation chain. Pure function:
+    input parts are never mutated — merged tables are new _TablePart
+    instances, so calling twice on the same input gives the same result.
+    """
+    merged = []
+    prev_idx = None   # index in `merged` of the previous page's last table
+    for page_parts in pages:
+        page_last_idx = None   # None ⇔ no table seen yet on this page
+        for part in page_parts:
+            if not isinstance(part, _TablePart):
+                merged.append(part)
+                continue
+            if (page_last_idx is None and prev_idx is not None
+                    and part.header == merged[prev_idx].header):
+                # Continuation: absorb into the previous page's table
+                target = merged[prev_idx]
+                rows = part.rows
+                if rows == target.rows:
+                    # Same table fully re-detected on both pages — emit once
+                    rows = []
+                elif rows and target.rows and rows[0] == target.rows[-1]:
+                    rows = rows[1:]
+                merged[prev_idx] = _TablePart(
+                    target.y, target.header, list(target.rows) + list(rows))
+                page_last_idx = prev_idx
+            else:
+                merged.append(part)
+                page_last_idx = len(merged) - 1
+        prev_idx = page_last_idx
+    return merged
 
 
 def extract_text_with_tables(filepath):
     """
-    Extract PDF text with table detection, preserving table structure as Markdown.
+    Extract PDF text with table detection, preserving table structure as
+    Markdown pipe tables (rendered via _table_to_markdown, so merged cells
+    stay blank after their first cell) and merging cross-page continuations.
 
-    Uses PyMuPDF find_tables() to locate tables on each page, converts them to
-    Markdown pipe tables via Table.to_markdown(), and interleaves them with the
-    surrounding text sorted by vertical position.
-
-    Falls back to plain page.get_text() on any error.
+    Returns None on any document-level error so the caller falls back to
+    plain text extraction.
     """
     if not fitz:
         return None
     try:
-        parts_all_pages = []
-        seen_table_sigs: set = set()
+        pages = []
         with fitz.open(filepath) as doc:
             for page in doc:
-                page_text = _extract_page_text_with_tables(page)
-                if page_text:
-                    # Cross-page deduplication: identical tables on consecutive pages
-                    # (e.g. a table that spans a page break is detected on both pages).
-                    # Use the first two header lines as a signature.
-                    table_lines = [l for l in page_text.split('\n') if l.startswith('|')]
-                    if table_lines:
-                        sig = '\n'.join(table_lines[:2])
-                        if sig in seen_table_sigs:
-                            # Strip duplicate table, keep only non-table text
-                            non_table = '\n'.join(
-                                l for l in page_text.split('\n')
-                                if not l.startswith('|')
-                            ).strip()
-                            if non_table:
-                                parts_all_pages.append(non_table)
-                            continue
-                        seen_table_sigs.add(sig)
-                    parts_all_pages.append(page_text)
-        result = "\n\n".join(p for p in parts_all_pages if p)
+                pages.append(_extract_page_text_with_tables(page))
+        rendered = []
+        for part in _merge_cross_page_tables(pages):
+            if isinstance(part, _TablePart):
+                md = _table_to_markdown(part.rows, external_header=part.header)
+            else:
+                md = part.text.strip()
+            if md:
+                rendered.append(md)
+        result = "\n\n".join(rendered)
         return result or None
     except Exception as e:
         logger.debug(f"Table-aware extraction failed, falling back to plain text: {e}")
@@ -375,24 +445,38 @@ def extract_text_with_tables(filepath):
 
 
 def _extract_page_text_with_tables(page):
-    """Extract one page's text, converting detected tables to Markdown."""
+    """Extract one page as y-sorted parts: _TextPart and _TablePart items."""
+    def plain():
+        text = page.get_text().strip()
+        return [_TextPart(0.0, text)] if text else []
+
     try:
         finder = page.find_tables()
         if not finder.tables:
-            return page.get_text().strip()
+            return plain()
 
-        # Build table entries: (y_top, markdown_string)
-        table_entries = []
+        parts = []
         table_rects = []
         for tbl in finder.tables:
-            tbl_rect = fitz.Rect(tbl.bbox)
-            table_rects.append(tbl_rect)
-            md = tbl.to_markdown()
-            md = _clean_table_md(md)
-            table_entries.append((tbl.bbox[1], md))
+            header_obj = tbl.header
+            if header_obj is None:   # zero-row table: nothing to render
+                continue
+            extracted = tbl.extract() or []
+            if header_obj.external and header_obj.names:
+                header, data = header_obj.names, extracted
+            elif extracted:
+                header, data = extracted[0], extracted[1:]
+            else:
+                continue   # nothing extractable — leave the region's text alone
+            parts.append(_TablePart(tbl.bbox[1], [_cell_text(c) for c in header], data))
+            # Suppress overlapping text blocks only for tables actually emitted
+            table_rects.append(fitz.Rect(tbl.bbox))
+            if header_obj.external:
+                # External header text sits outside tbl.bbox; exclude it too
+                # so it is not emitted again as a stray text block.
+                table_rects.append(fitz.Rect(header_obj.bbox))
 
-        # Get text blocks, excluding those that overlap significantly with tables
-        text_entries = []
+        # Text blocks, excluding those that overlap significantly with tables
         for block in page.get_text("blocks"):
             x0, y0, x1, y1, text, *_ = block
             if not text.strip():
@@ -404,15 +488,13 @@ def _extract_page_text_with_tables(page):
                 for trect in table_rects
             )
             if not in_table:
-                text_entries.append((y0, text.strip()))
+                parts.append(_TextPart(y0, text.strip()))
 
-        # Merge text blocks and tables sorted by vertical position
-        all_entries = text_entries + table_entries
-        all_entries.sort(key=lambda e: e[0])
-        return "\n\n".join(content for _, content in all_entries if content.strip())
+        parts.sort(key=lambda p: p.y)
+        return parts
 
     except Exception:
-        return page.get_text().strip()
+        return plain()
 
 
 def get_page_count(filepath):
