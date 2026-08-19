@@ -351,7 +351,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=notoriouslab/doc-cleaner&type=Date)](https://star-history.com/#notoriouslab/doc-cleaner&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=notoriouslab/doc-cleaner&type=Date)](https://star-history.dera.page/#notoriouslab/doc-cleaner&type=Date)
 
 ---
 
